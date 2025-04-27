@@ -74,4 +74,7 @@ router.post('/:campaignId/pause', campaignController.pauseCampaign);
 router.post('/:campaignId/resume', campaignController.resumeCampaign);
 router.post('/:campaignId/stop', campaignController.cancelCampaign);
 
+// Get recipient status
+router.get('/:id/recipients/:phone', campaignController.getRecipientStatus);
+
 module.exports = router;

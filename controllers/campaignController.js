@@ -9,6 +9,10 @@ const { getRandomInstance } = require("../utils/RandomInstance");
 const creditService = require("../services/creditsService");
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validatePhoneNumber } = require('../utils/helpers');
+const Campaign = require('../models/Campaign');
+const Template = require('../models/Template');
+const Group = require('../models/Group');
+const whatsappService = require('../services/whatsappService');
 
 const setDefaultUserProfile = async (numbers, instance) => {
   console.log(`Setting default profile for ${numbers} on instance ${instance}`);
@@ -18,19 +22,37 @@ const setDefaultUserProfile = async (numbers, instance) => {
 // Create campaign
 const createCampaign = asyncHandler(async (req, res) => {
   try {
-    const campaignData = req.body;
-    const userId = req.user.id;
+    const { name, templateId, groupId, scheduleTime } = req.body;
 
-    const campaign = await campaignService.createCampaign(campaignData, userId);
+    // Validate template exists
+    const template = await Template.findById(templateId);
+    if (!template) {
+      return res.status(404).json({ message: 'Template not found' });
+    }
 
-    res.status(201).json({
-      success: true,
-      message: 'Campaign created successfully',
-      data: campaign
+    // Validate group exists and get recipients
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    // Create campaign
+    const campaign = new Campaign({
+      name,
+      userId: req.user.id,
+      templateId,
+      groupId,
+      scheduleTime,
+      recipients: group.contacts.map(contact => ({
+        phone: contact.phone
+      }))
     });
+
+    await campaign.save();
+
+    res.status(201).json(campaign);
   } catch (error) {
-    console.error("Error in campaignController:", error);
-    res.status(500).json({ error: "Failed to create campaign" });
+    res.status(500).json({ message: 'Error creating campaign', error: error.message });
   }
 });
 
@@ -68,16 +90,40 @@ const getCampaignById = asyncHandler(async (req, res) => {
 
 // Update campaign
 const updateCampaign = asyncHandler(async (req, res) => {
-  const campaign = await campaignService.updateCampaign(
-    req.params.id,
-    req.user._id,
-    req.body
-  );
-  res.status(200).json({
-    success: true,
-    message: 'Campaign updated successfully',
-    data: campaign
-  });
+  const { name, templateId, groupId, scheduleTime } = req.body;
+  const campaign = await Campaign.findById(req.params.id);
+
+  if (!campaign) {
+    return res.status(404).json({ message: 'Campaign not found' });
+  }
+
+  // Check if user has access to this campaign
+  if (campaign.userId.toString() !== req.user.id) {
+    return res.status(403).json({ message: 'Access denied' });
+  }
+
+  // Check if campaign can be updated
+  if (campaign.status !== 'draft') {
+    return res.status(400).json({ message: 'Only draft campaigns can be updated' });
+  }
+
+  // Update fields
+  if (name) campaign.name = name;
+  if (templateId) campaign.templateId = templateId;
+  if (groupId) {
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+    campaign.groupId = groupId;
+    campaign.recipients = group.contacts.map(contact => ({
+      phone: contact.phone
+    }));
+  }
+  if (scheduleTime) campaign.scheduleTime = scheduleTime;
+
+  await campaign.save();
+  res.json(campaign);
 });
 
 // Delete campaign
@@ -95,16 +141,74 @@ const deleteCampaign = asyncHandler(async (req, res) => {
 
 // Start campaign
 const startCampaign = asyncHandler(async (req, res) => {
-  const { campaignId } = req.params;
-  const userId = req.user.id;
+  try {
+    const campaign = await Campaign.findById(req.params.id)
+      .populate('templateId')
+      .populate('groupId');
 
-  const campaign = await campaignService.startCampaign(campaignId, userId);
+    if (!campaign) {
+      return res.status(404).json({ message: 'Campaign not found' });
+    }
 
-  res.status(200).json({
-    success: true,
-    message: 'Campaign started successfully',
-    data: campaign
-  });
+    // Check if user has access to this campaign
+    if (campaign.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Check if campaign can be started
+    if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
+      return res.status(400).json({ message: 'Campaign cannot be started' });
+    }
+
+    // Check if scheduled time has been reached
+    if (campaign.scheduleTime && campaign.scheduleTime > new Date()) {
+      return res.status(400).json({ message: 'Campaign scheduled time has not been reached' });
+    }
+
+    // Check credits
+    const requiredCredits = campaign.recipients.length;
+    const hasCredits = await creditService.checkCredits(req.user.id, requiredCredits);
+    if (!hasCredits) {
+      return res.status(400).json({ message: 'Insufficient credits' });
+    }
+
+    // Update campaign status
+    campaign.status = 'running';
+    await campaign.save();
+
+    // Start sending messages
+    campaign.recipients.forEach(async (recipient) => {
+      try {
+        if (validatePhoneNumber(recipient.phone)) {
+          const messageId = await whatsappService.sendTemplate(
+            recipient.phone,
+            campaign.templateId.name,
+            campaign.templateId.language,
+            campaign.templateId.components
+          );
+
+          recipient.status = 'sent';
+          recipient.sentAt = new Date();
+          await campaign.save();
+
+          // Deduct credits
+          await creditService.deductCredits(req.user.id, 1);
+        } else {
+          recipient.status = 'failed';
+          recipient.error = 'Invalid phone number';
+          await campaign.save();
+        }
+      } catch (error) {
+        recipient.status = 'failed';
+        recipient.error = error.message;
+        await campaign.save();
+      }
+    });
+
+    res.json({ message: 'Campaign started successfully', campaign });
+  } catch (error) {
+    res.status(500).json({ message: 'Error starting campaign', error: error.message });
+  }
 });
 
 // Pause campaign
@@ -147,12 +251,22 @@ const cancelCampaign = asyncHandler(async (req, res) => {
 
 // Get campaign statistics
 const getCampaignStats = asyncHandler(async (req, res) => {
-  const stats = await campaignService.getCampaignStats(req.params.id, req.user._id);
-  res.status(200).json({
-    success: true,
-    message: 'Campaign statistics retrieved successfully',
-    data: stats
-  });
+  try {
+    const campaign = await Campaign.findById(req.params.id);
+
+    if (!campaign) {
+      return res.status(404).json({ message: 'Campaign not found' });
+    }
+
+    // Check if user has access to this campaign
+    if (campaign.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    res.json(campaign.stats);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving campaign statistics', error: error.message });
+  }
 });
 
 // Get campaign delivery reports
@@ -218,6 +332,32 @@ const getUserCampaigns = asyncHandler(async (req, res) => {
   });
 });
 
+// Check recipient status
+const getRecipientStatus = asyncHandler(async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const campaign = await Campaign.findById(req.params.id);
+
+    if (!campaign) {
+      return res.status(404).json({ message: 'Campaign not found' });
+    }
+
+    // Check if user has access to this campaign
+    if (campaign.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const recipient = campaign.recipients.find(r => r.phone === phone);
+    if (!recipient) {
+      return res.status(404).json({ message: 'Recipient not found in campaign' });
+    }
+
+    res.json(recipient);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving recipient status', error: error.message });
+  }
+});
+
 module.exports = {
   createCampaign,
   getCampaigns,
@@ -231,5 +371,6 @@ module.exports = {
   getCampaignStats,
   getCampaignDeliveryReports,
   validateCampaign,
-  getUserCampaigns
+  getUserCampaigns,
+  getRecipientStatus
 };

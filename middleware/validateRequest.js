@@ -12,12 +12,12 @@ const validateLogin = (req, res, next) => {
 };
 
 const validateCreateUser = (req, res, next) => {
-    const { username, password, firstName, lastName, mobileNumber, role } = req.body;
+    const { username, password, role } = req.body;
 
-    if (!username || !password || !firstName || !lastName || !mobileNumber) {
+    if (!username || !password) {
         return res.status(400).json({
             success: false,
-            message: 'Missing required fields'
+            message: 'Username and password are required'
         });
     }
 

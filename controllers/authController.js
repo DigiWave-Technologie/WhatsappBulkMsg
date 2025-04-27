@@ -1,4 +1,5 @@
 const authService = require("../services/authService");
+const apiService = require("../services/apiService");
 const { getClientIp } = require('request-ip');
 const UAParser = require('ua-parser-js');
 
@@ -149,7 +150,7 @@ const logout = async (req, res) => {
 const generateApiKey = async (req, res) => {
   try {
     const userId = req.user.userId; // From auth middleware
-    const result = await authService.generateApiKey(userId);
+    const result = await apiService.generateApiKey(userId);
     res.status(200).json({
       success: true,
       message: 'API key generated successfully',
@@ -167,7 +168,7 @@ const generateApiKey = async (req, res) => {
 const revokeApiKey = async (req, res) => {
   try {
     const userId = req.user.userId; // From auth middleware
-    const result = await authService.revokeApiKey(userId);
+    const result = await apiService.revokeApiKey(userId);
     res.status(200).json({
       success: true,
       message: 'API key revoked successfully',

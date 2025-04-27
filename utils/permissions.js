@@ -4,6 +4,11 @@ const rolePermissions = {
     admin: [
         'manage_users',
         'manage_credits',
+        'transfer_credits',
+        'view_all_transactions',
+        'view_user_transactions',
+        'view_category_transactions',
+        'check_credits',
         'manage_templates',
         'manage_campaigns',
         'view_reports',
@@ -11,12 +16,17 @@ const rolePermissions = {
     ],
     reseller: [
         'manage_credits',
+        'transfer_credits',
+        'view_user_transactions',
+        'check_credits',
         'manage_templates',
         'manage_campaigns',
         'view_reports',
         'manage_groups'
     ],
     user: [
+        'check_credits',
+        'view_user_transactions',
         'manage_templates',
         'manage_campaigns',
         'view_reports',

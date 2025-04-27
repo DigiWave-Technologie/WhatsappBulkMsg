@@ -13,10 +13,10 @@ const validate = (req, res, next) => {
 
 // Login validation
 const loginValidation = [
-  body('email')
+  body('username')
     .trim()
-    .isEmail()
-    .withMessage('Please provide a valid email'),
+    .notEmpty()
+    .withMessage('Username is required'),
   body('password')
     .trim()
     .notEmpty()
@@ -27,25 +27,23 @@ const loginValidation = [
 // Registration validation (for creating new users)
 const registrationValidation = [
   body('firstName')
+    .optional()
     .trim()
-    .notEmpty()
-    .withMessage('First name is required')
     .isLength({ min: 2 })
     .withMessage('First name must be at least 2 characters long'),
   body('lastName')
+    .optional()
     .trim()
-    .notEmpty()
-    .withMessage('Last name is required')
     .isLength({ min: 2 })
     .withMessage('Last name must be at least 2 characters long'),
   body('email')
+    .optional()
     .trim()
     .isEmail()
     .withMessage('Please provide a valid email'),
   body('mobileNumber')
+    .optional()
     .trim()
-    .notEmpty()
-    .withMessage('Mobile number is required')
     .matches(/^[0-9]{10}$/)
     .withMessage('Please provide a valid 10-digit mobile number'),
   body('password')

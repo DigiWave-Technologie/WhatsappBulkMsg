@@ -8,311 +8,247 @@ const { ApiError } = require('../middleware/errorHandler');
 const whatsappService = require('./whatsappService');
 const creditService = require('./creditsService');
 const config = require('../config/config');
+const Credit = require('../models/Credit');
+const MessageLog = require('../models/MessageLog');
+const Group = require('../models/Group');
 
 class CampaignService {
     // Create a new campaign
-    async createCampaign(campaignData, userId) {
-        try {
-            // Check user credits
-            const userCredits = await creditService.getUserCredits(userId);
-            const requiredCredits = this.calculateRequiredCredits(campaignData);
-            
-            if (userCredits < requiredCredits) {
-                throw new Error('Insufficient credits');
-            }
+    async createCampaign(userId, campaignData) {
+        const { name, templateId, groupId, scheduledAt } = campaignData;
 
-            // Create campaign based on type
-            let campaign;
-            switch (campaignData.type) {
-                case 'personal':
-                    campaign = new PersonalCampaign({
-                        ...campaignData,
-                        userId,
-                        status: 'pending',
-                        createdAt: new Date()
-                    });
-                    break;
-                case 'international':
-                    campaign = new InternationalCampaign({
-                        ...campaignData,
-                        userId,
-                        status: 'pending',
-                        createdAt: new Date()
-                    });
-                    break;
-                case 'international-personal':
-                    campaign = new InternationalPersonalCampaign({
-                        ...campaignData,
-                        userId,
-                        status: 'pending',
-                        createdAt: new Date()
-                    });
-                    break;
-                default:
-                    campaign = new Campaign({
-                        ...campaignData,
-                        userId,
-                        status: 'pending',
-                        createdAt: new Date()
-                    });
-            }
+        // Validate template and group
+        const [template, group] = await Promise.all([
+            Template.findOne({ _id: templateId, userId }),
+            Group.findOne({ _id: groupId, userId })
+        ]);
 
-            await campaign.save();
-            return campaign;
-        } catch (error) {
-            throw new Error(`Failed to create campaign: ${error.message}`);
+        if (!template) {
+            throw new Error('Template not found');
         }
+
+        if (!group) {
+            throw new Error('Group not found');
+        }
+
+        // Create campaign
+        const campaign = new Campaign({
+            name,
+            userId,
+            templateId,
+            groupId,
+            scheduledAt,
+            totalRecipients: group.contacts.length,
+            status: scheduledAt ? 'scheduled' : 'draft'
+        });
+
+        await campaign.save();
+        return campaign;
     }
 
     // Get campaigns with pagination and filters
-    async getCampaigns(userId, filters = {}, page = 1, limit = 10) {
-        const query = { createdBy: userId };
+    async getCampaigns(userId, filters = {}) {
+        const query = { userId };
 
-        // Apply filters
         if (filters.status) {
             query.status = filters.status;
         }
-        if (filters.type) {
-            query.type = filters.type;
-        }
-        if (filters.startDate) {
-            query['schedule.startAt'] = { $gte: new Date(filters.startDate) };
-        }
-        if (filters.endDate) {
-            query['schedule.endAt'] = { $lte: new Date(filters.endDate) };
+
+        if (filters.startDate && filters.endDate) {
+            query.createdAt = {
+                $gte: new Date(filters.startDate),
+                $lte: new Date(filters.endDate)
+            };
         }
 
-        const options = {
-            page,
-            limit,
-            sort: { 'schedule.startAt': -1 },
-            populate: [
-                { path: 'template', select: 'name category' },
-                { path: 'createdBy', select: 'username email' }
-            ]
-        };
-
-        return await Campaign.paginate(query, options);
+        return Campaign.find(query)
+            .populate('templateId', 'name content')
+            .populate('groupId', 'name')
+            .sort({ createdAt: -1 });
     }
 
     // Get campaign by ID
-    async getCampaignById(campaignId, userId) {
-        try {
-            const campaign = await Campaign.findOne({ _id: campaignId, userId });
-            if (!campaign) {
-                const personalCampaign = await PersonalCampaign.findOne({ _id: campaignId, userId });
-                if (!personalCampaign) {
-                    const internationalCampaign = await InternationalCampaign.findOne({ _id: campaignId, userId });
-                    if (!internationalCampaign) {
-                        return await InternationalPersonalCampaign.findOne({ _id: campaignId, userId });
-                    }
-                    return internationalCampaign;
-                }
-                return personalCampaign;
-            }
-            return campaign;
-        } catch (error) {
-            throw new Error(`Failed to get campaign: ${error.message}`);
+    async getCampaignById(userId, campaignId) {
+        const campaign = await Campaign.findOne({ _id: campaignId, userId })
+            .populate('templateId', 'name content')
+            .populate('groupId', 'name');
+
+        if (!campaign) {
+            throw new Error('Campaign not found');
         }
+
+        return campaign;
     }
 
     // Update campaign
-    async updateCampaign(campaignId, userId, updateData) {
-        const campaign = await this.getCampaignById(campaignId, userId);
+    async updateCampaign(userId, campaignId, updateData) {
+        const campaign = await Campaign.findOne({ _id: campaignId, userId });
 
-        // Check if campaign can be updated
-        if (!['draft', 'scheduled'].includes(campaign.status)) {
-            throw new ApiError(400, 'Cannot update campaign that is already running, completed, or cancelled');
+        if (!campaign) {
+            throw new Error('Campaign not found');
         }
 
-        // Update campaign data
+        if (campaign.status !== 'draft') {
+            throw new Error('Only draft campaigns can be updated');
+        }
+
         Object.assign(campaign, updateData);
-
-        // Validate schedule
-        campaign.validateSchedule();
-
-        // Calculate required credits if recipients changed
-        if (updateData.recipients) {
-            const requiredCredits = this.calculateRequiredCredits(campaign);
-            const hasCredits = await creditService.checkUserCredits(userId, requiredCredits);
-            if (!hasCredits) {
-                throw new ApiError(400, 'Insufficient credits');
-            }
-        }
-
-        // Save and reschedule if necessary
         await campaign.save();
-        if (campaign.status === 'scheduled') {
-            await this.scheduleCampaign(campaign);
-        }
 
         return campaign;
     }
 
     // Delete campaign
-    async deleteCampaign(campaignId, userId) {
-        try {
-            const campaign = await this.getCampaignById(campaignId, userId);
-            if (!campaign) {
-                throw new Error('Campaign not found');
-            }
+    async deleteCampaign(userId, campaignId) {
+        const campaign = await Campaign.findOne({ _id: campaignId, userId });
 
-            if (campaign.status === 'running') {
-                throw new Error('Cannot delete a running campaign');
-            }
-
-            await campaign.remove();
-            return { message: 'Campaign deleted successfully' };
-        } catch (error) {
-            throw new Error(`Failed to delete campaign: ${error.message}`);
+        if (!campaign) {
+            throw new Error('Campaign not found');
         }
+
+        if (campaign.status !== 'draft') {
+            throw new Error('Only draft campaigns can be deleted');
+        }
+
+        await campaign.remove();
     }
 
     // Start campaign
-    async startCampaign(campaignId, userId) {
-        const campaign = await this.getCampaignById(campaignId, userId);
+    async startCampaign(userId, campaignId) {
+        const campaign = await Campaign.findOne({ _id: campaignId, userId })
+            .populate('templateId')
+            .populate('groupId');
 
-        if (campaign.status !== 'scheduled' && campaign.status !== 'draft') {
-            throw new ApiError(400, 'Campaign cannot be started');
+        if (!campaign) {
+            throw new Error('Campaign not found');
         }
 
+        if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
+            throw new Error('Campaign cannot be started');
+        }
+
+        if (campaign.status === 'scheduled' && campaign.scheduledAt > new Date()) {
+            throw new Error('Campaign is scheduled for a future date');
+        }
+
+        // Check credits
+        const requiredCredits = campaign.totalRecipients;
+        const hasCredits = await creditService.checkCredits(userId, requiredCredits);
+
+        if (!hasCredits) {
+            throw new Error('Insufficient credits');
+        }
+
+        // Update campaign status
         campaign.status = 'running';
+        campaign.startedAt = new Date();
         await campaign.save();
 
-        // Start processing messages
-        this.processCampaign(campaign);
+        // Start sending messages
+        this.sendCampaignMessages(campaign);
 
         return campaign;
     }
 
-    // Pause campaign
-    async pauseCampaign(campaignId, userId) {
-        const campaign = await this.getCampaignById(campaignId, userId);
-        await campaign.pause();
-        return campaign;
-    }
+    async sendCampaignMessages(campaign) {
+        const { templateId, groupId } = campaign;
 
-    // Resume campaign
-    async resumeCampaign(campaignId, userId) {
-        const campaign = await this.getCampaignById(campaignId, userId);
-        await campaign.resume();
-        
-        // Resume processing messages
-        this.processCampaign(campaign);
+        for (const contact of groupId.contacts) {
+            try {
+                // Send message
+                const message = await whatsappService.sendTemplate(
+                    contact.phone,
+                    templateId.name,
+                    templateId.language,
+                    templateId.components
+                );
 
-        return campaign;
-    }
+                // Log message
+                await MessageLog.create({
+                    messageId: message.id,
+                    userId: campaign.userId,
+                    campaignId: campaign._id,
+                    recipient: contact.phone,
+                    messageType: 'template',
+                    content: templateId.content,
+                    status: 'sent'
+                });
 
-    // Cancel campaign
-    async cancelCampaign(campaignId, userId) {
-        const campaign = await this.getCampaignById(campaignId, userId);
-        await campaign.cancel();
-        return campaign;
-    }
+                // Update campaign stats
+                campaign.sentCount += 1;
+                await campaign.save();
 
-    // Calculate required credits for campaign
-    calculateRequiredCredits(campaign) {
-        const baseCredits = calculateMessageCredits(
-            campaign.template.content,
-            campaign.media
-        );
-        return baseCredits * campaign.recipients.length;
-    }
+                // Deduct credits
+                await creditService.deductCredits(campaign.userId, 1, 'campaign', campaign._id);
 
-    // Schedule campaign for execution
-    async scheduleCampaign(campaign) {
-        // Implementation will depend on your job scheduling system
-        // This is a placeholder for scheduling logic
-        console.log(`Campaign ${campaign._id} scheduled for ${campaign.schedule.startAt}`);
-    }
+            } catch (error) {
+                // Log error
+                await MessageLog.create({
+                    userId: campaign.userId,
+                    campaignId: campaign._id,
+                    recipient: contact.phone,
+                    messageType: 'template',
+                    content: templateId.content,
+                    status: 'failed',
+                    error: error.message
+                });
 
-    // Process campaign messages
-    async processCampaign(campaign) {
-        try {
-            const pendingRecipients = campaign.recipients.filter(r => r.status === 'pending');
-            
-            for (const recipient of pendingRecipients) {
-                // Check if campaign is still running
-                const updatedCampaign = await Campaign.findById(campaign._id);
-                if (updatedCampaign.status !== 'running') {
-                    break;
-                }
-
-                try {
-                    // Process template variables
-                    const message = await Template.replaceVariables(
-                        campaign.template.content,
-                        recipient.variables
-                    );
-
-                    // Send message
-                    await whatsappService.sendMessage({
-                        to: recipient.phoneNumber,
-                        message,
-                        media: campaign.media
-                    });
-
-                    // Update recipient status
-                    await campaign.updateRecipientStatus(recipient.phoneNumber, 'sent');
-
-                    // Deduct credits
-                    await creditService.deductCredits(
-                        campaign.createdBy,
-                        calculateMessageCredits(message, campaign.media)
-                    );
-
-                    // Delay between messages
-                    await new Promise(resolve => 
-                        setTimeout(resolve, campaign.schedule.delayBetweenMessages)
-                    );
-
-                } catch (error) {
-                    await campaign.updateRecipientStatus(
-                        recipient.phoneNumber,
-                        'failed',
-                        { error: error.message }
-                    );
-                }
+                // Update campaign stats
+                campaign.failedCount += 1;
+                await campaign.save();
             }
-
-            // Update campaign status if all messages are processed
-            const completedCampaign = await Campaign.findById(campaign._id);
-            if (!completedCampaign.recipients.some(r => r.status === 'pending')) {
-                completedCampaign.status = 'completed';
-                await completedCampaign.save();
-            }
-
-        } catch (error) {
-            campaign.status = 'failed';
-            await campaign.save();
-            throw new ApiError(500, `Campaign processing failed: ${error.message}`);
         }
+
+        // Update campaign status
+        campaign.status = 'completed';
+        campaign.completedAt = new Date();
+        await campaign.save();
     }
 
     // Get campaign statistics
-    async getCampaignStats(campaignId, userId) {
-        const campaign = await this.getCampaignById(campaignId, userId);
-        return campaign.stats;
+    async getCampaignStats(userId, campaignId) {
+        const campaign = await this.getCampaignById(userId, campaignId);
+
+        const stats = await MessageLog.aggregate([
+            { $match: { campaignId: campaign._id } },
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        return {
+            total: campaign.totalRecipients,
+            sent: campaign.sentCount,
+            delivered: campaign.deliveredCount,
+            failed: campaign.failedCount,
+            statusBreakdown: stats.reduce((acc, curr) => {
+                acc[curr._id] = curr.count;
+                return acc;
+            }, {})
+        };
     }
 
-    // Get campaign delivery reports
-    async getCampaignDeliveryReports(campaignId, userId, filters = {}) {
-        const campaign = await this.getCampaignById(campaignId, userId);
-        
-        let recipients = campaign.recipients;
+    // Get recipient status
+    async getRecipientStatus(userId, campaignId, phone) {
+        const campaign = await this.getCampaignById(userId, campaignId);
 
-        // Apply filters
-        if (filters.status) {
-            recipients = recipients.filter(r => r.status === filters.status);
-        }
-        if (filters.startDate) {
-            recipients = recipients.filter(r => r.sentAt >= new Date(filters.startDate));
-        }
-        if (filters.endDate) {
-            recipients = recipients.filter(r => r.sentAt <= new Date(filters.endDate));
+        const messageLog = await MessageLog.findOne({
+            campaignId: campaign._id,
+            recipient: phone
+        });
+
+        if (!messageLog) {
+            throw new Error('Recipient not found in campaign');
         }
 
-        return recipients;
+        return {
+            status: messageLog.status,
+            error: messageLog.error,
+            timestamp: messageLog.createdAt
+        };
     }
 }
 

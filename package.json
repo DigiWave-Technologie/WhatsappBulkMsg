@@ -30,7 +30,10 @@
     "prod:restart": "pm2 restart ecosystem.config.js",
     "prod:logs": "pm2 logs",
     "prod:monitor": "pm2 monit",
-    "prod:status": "pm2 status"
+    "prod:status": "pm2 status",
+    "check-credits": "node scripts/checkCredits.js",
+    "credit-expiry-cron": "node scripts/setupCreditExpiryCron.js",
+    "test-credit-management": "node scripts/testCreditManagement.js"
   },
   "keywords": [],
   "author": "",
@@ -40,6 +43,7 @@
     "@aws-sdk/client-s3": "^3.744.0",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.6.7",
+    "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
@@ -59,6 +63,7 @@
     "multer": "^1.4.5-lts.1",
     "mysql": "^2.18.1",
     "mysql2": "^3.14.0",
+    "node-cron": "^3.0.3",
     "nodemailer": "^6.9.9",
     "nodemon": "^3.0.3",
     "open": "^10.1.0",

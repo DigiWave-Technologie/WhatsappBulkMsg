@@ -1,125 +1,158 @@
-const config = require('../config');
+const axios = require('axios');
+const config = require('../config/whatsapp');
 
 class WhatsAppService {
     constructor() {
-        // Mock configuration - no actual API credentials needed
-        this.baseUrl = 'https://mock-whatsapp-api.example.com';
-        this.apiKey = 'mock-api-key';
-        this.phoneNumberId = 'mock-phone-number-id';
-        this.businessAccountId = 'mock-business-account-id';
+        this.baseUrl = config.apiUrl;
+        this.apiKey = config.apiKey;
     }
 
-    async sendMessage(to, message, media = null) {
+    async sendMessage({ to, message, template, media, variables }) {
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Mock successful response
-            return {
+            const payload = {
                 messaging_product: 'whatsapp',
-                contacts: [{ input: to, wa_id: `mock-${to}` }],
-                messages: [{ id: `mock-${Date.now()}` }]
+                recipient_type: 'individual',
+                to,
+                type: template ? 'template' : 'text'
+            };
+
+            if (template) {
+                payload.template = {
+                    name: template,
+                    language: {
+                        code: variables?.language || 'en'
+                    },
+                    components: variables?.components || []
+                };
+            } else {
+                payload.text = {
+                    body: message
+                };
+            }
+
+            if (media && media.length > 0) {
+                media.forEach(item => {
+                    if (!payload[item.type]) {
+                        payload[item.type] = {
+                            link: item.url,
+                            caption: item.caption
+                        };
+                    }
+                });
+            }
+
+            const response = await axios.post(`${this.baseUrl}/messages`, payload, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            return {
+                messageId: response.data.messages[0].id,
+                status: 'sent'
             };
         } catch (error) {
-            console.error('Mock WhatsApp sendMessage error:', error);
-            throw new Error(`Failed to send WhatsApp message: ${error.message}`);
+            throw new Error('Failed to send WhatsApp message: ' + error.message);
         }
     }
 
-    async sendTemplate(to, templateName, languageCode, components = []) {
+    async sendTemplate({ to, template, language, components }) {
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Mock successful response
-            return {
+            const payload = {
                 messaging_product: 'whatsapp',
-                contacts: [{ input: to, wa_id: `mock-${to}` }],
-                messages: [{ id: `mock-template-${Date.now()}` }]
+                recipient_type: 'individual',
+                to,
+                type: 'template',
+                template: {
+                    name: template,
+                    language: {
+                        code: language
+                    },
+                    components
+                }
+            };
+
+            const response = await axios.post(`${this.baseUrl}/messages`, payload, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            return {
+                messageId: response.data.messages[0].id,
+                status: 'sent'
             };
         } catch (error) {
-            console.error('Mock WhatsApp sendTemplate error:', error);
-            throw new Error(`Failed to send template message: ${error.message}`);
+            throw new Error('Failed to send WhatsApp template: ' + error.message);
         }
     }
 
     async getMessageStatus(messageId) {
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Mock successful response with random status
-            const statuses = ['sent', 'delivered', 'read'];
-            const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-            
+            const response = await axios.get(`${this.baseUrl}/messages/${messageId}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`
+                }
+            });
+
             return {
-                messaging_product: 'whatsapp',
-                status: randomStatus,
-                message_id: messageId
+                status: response.data.status,
+                timestamp: response.data.timestamp
             };
         } catch (error) {
-            console.error('Mock WhatsApp getMessageStatus error:', error);
-            throw new Error(`Failed to get message status: ${error.message}`);
+            throw new Error('Failed to get message status: ' + error.message);
         }
     }
 
-    async validateNumber(phoneNumber) {
+    async validateNumber(number) {
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Mock successful response - always return valid
+            const response = await axios.post(`${this.baseUrl}/contacts`, {
+                blocking: 'wait',
+                contacts: [number]
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
             return {
-                valid: true,
-                normalized_number: phoneNumber
+                valid: response.data.contacts[0].status === 'valid',
+                status: response.data.contacts[0].status
             };
         } catch (error) {
-            console.error('Mock WhatsApp validateNumber error:', error);
-            throw new Error(`Failed to validate phone number: ${error.message}`);
+            throw new Error('Failed to validate number: ' + error.message);
         }
     }
 
     async getBusinessProfile() {
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Mock successful response
-            return {
-                messaging_product: 'whatsapp',
-                profile: {
-                    name: 'Mock Business',
-                    about: 'This is a mock business profile',
-                    messaging_product: 'whatsapp',
-                    category: 'BUSINESS',
-                    address: '123 Mock Street, Mock City',
-                    email: 'mock@example.com',
-                    websites: ['https://example.com'],
-                    profile_picture_url: 'https://example.com/mock-profile.jpg'
+            const response = await axios.get(`${this.baseUrl}/business/profile`, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`
                 }
-            };
+            });
+
+            return response.data;
         } catch (error) {
-            console.error('Mock WhatsApp getBusinessProfile error:', error);
-            throw new Error(`Failed to get business profile: ${error.message}`);
+            throw new Error('Failed to get business profile: ' + error.message);
         }
     }
 
-    async updateBusinessProfile(profileData) {
+    async updateBusinessProfile(data) {
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Mock successful response
-            return {
-                success: true,
-                profile: {
-                    ...profileData,
-                    messaging_product: 'whatsapp'
+            const response = await axios.patch(`${this.baseUrl}/business/profile`, data, {
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
                 }
-            };
+            });
+
+            return response.data;
         } catch (error) {
-            console.error('Mock WhatsApp updateBusinessProfile error:', error);
-            throw new Error(`Failed to update business profile: ${error.message}`);
+            throw new Error('Failed to update business profile: ' + error.message);
         }
     }
 }

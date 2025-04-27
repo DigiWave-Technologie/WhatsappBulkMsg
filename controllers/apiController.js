@@ -10,7 +10,7 @@ const { validateDateRange } = require('../middleware/validation');
  */
 const generateApiKey = async (req, res) => {
   try {
-    const result = await apiService.generateApiKey(req.user._id);
+    const result = await apiService.generateApiKey(req.user.userId);
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -22,7 +22,7 @@ const generateApiKey = async (req, res) => {
  */
 const revokeApiKey = async (req, res) => {
   try {
-    const result = await apiService.revokeApiKey(req.user._id);
+    const result = await apiService.revokeApiKey(req.user.userId);
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -44,7 +44,7 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Message or template is required' });
     }
 
-    const result = await apiService.sendMessage(req.user._id, {
+    const result = await apiService.sendMessage(req.user.userId, {
       recipient,
       message,
       template,
@@ -72,7 +72,7 @@ const createTemplate = async (req, res) => {
       });
     }
 
-    const template = await apiService.createTemplate(req.user._id, {
+    const template = await apiService.createTemplate(req.user.userId, {
       name,
       content,
       category,
@@ -99,7 +99,7 @@ const createGroup = async (req, res) => {
       });
     }
 
-    const group = await apiService.createGroup(req.user._id, {
+    const group = await apiService.createGroup(req.user.userId, {
       name,
       contacts
     });
@@ -121,7 +121,7 @@ const scanWhatsappNumber = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Number is required' });
     }
 
-    const result = await apiService.scanWhatsappNumber(req.user._id, number);
+    const result = await apiService.scanWhatsappNumber(req.user.userId, number);
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -136,7 +136,7 @@ const getCreditHistory = async (req, res) => {
     const { startDate, endDate } = req.query;
     validateDateRange(startDate, endDate);
 
-    const transactions = await apiService.getCreditHistory(req.user._id, { startDate, endDate });
+    const transactions = await apiService.getCreditHistory(req.user.userId, { startDate, endDate });
     res.json({ success: true, data: transactions });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -151,7 +151,7 @@ const getReports = async (req, res) => {
     const { startDate, endDate, status } = req.query;
     validateDateRange(startDate, endDate);
 
-    const reports = await apiService.getReports(req.user._id, { startDate, endDate, status });
+    const reports = await apiService.getReports(req.user.userId, { startDate, endDate, status });
     res.json({ success: true, data: reports });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -182,7 +182,7 @@ const sendCampaign = async (req, res) => {
       });
     }
 
-    const campaign = await apiService.sendCampaign(req.user._id, {
+    const campaign = await apiService.sendCampaign(req.user.userId, {
       title,
       type,
       recipients,
@@ -249,21 +249,20 @@ const getTransactions = async (req, res) => {
  */
 const getCampaigns = async (req, res) => {
   try {
-    const userId = req.user.userId;
     const { status, startDate, endDate } = req.query;
-    
-    const result = await campaignService.getCampaigns(userId, status, startDate, endDate);
-    
-    return res.status(200).json({
+    const campaigns = await campaignService.getCampaigns(req.user.userId, {
+      status,
+      startDate,
+      endDate
+    });
+    res.json({
       success: true,
-      message: 'Campaigns retrieved successfully',
-      data: result
+      data: campaigns
     });
   } catch (error) {
-    console.error('Error retrieving campaigns:', error);
-    return res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: error.message || 'Failed to retrieve campaigns'
+      error: error.message
     });
   }
 };
@@ -273,21 +272,15 @@ const getCampaigns = async (req, res) => {
  */
 const createCampaign = async (req, res) => {
   try {
-    const campaignData = req.body;
-    const userId = req.user.userId;
-    
-    const result = await campaignService.createCampaign(userId, campaignData);
-    
-    return res.status(201).json({
+    const campaign = await campaignService.createCampaign(req.user.userId, req.body);
+    res.json({
       success: true,
-      message: 'Campaign created successfully',
-      data: result
+      data: campaign
     });
   } catch (error) {
-    console.error('Error creating campaign:', error);
-    return res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: error.message || 'Failed to create campaign'
+      error: error.message
     });
   }
 };
@@ -297,21 +290,21 @@ const createCampaign = async (req, res) => {
  */
 const getCampaignById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.user.userId;
-    
-    const result = await campaignService.getCampaignById(userId, id);
-    
-    return res.status(200).json({
+    const campaign = await campaignService.getCampaignById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+    }
+    res.json({
       success: true,
-      message: 'Campaign retrieved successfully',
-      data: result
+      data: campaign
     });
   } catch (error) {
-    console.error('Error retrieving campaign:', error);
-    return res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: error.message || 'Failed to retrieve campaign'
+      error: error.message
     });
   }
 };
@@ -321,22 +314,15 @@ const getCampaignById = async (req, res) => {
  */
 const updateCampaign = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
-    const userId = req.user.userId;
-    
-    const result = await campaignService.updateCampaign(userId, id, updateData);
-    
-    return res.status(200).json({
+    const campaign = await campaignService.updateCampaign(req.params.id, req.body);
+    res.json({
       success: true,
-      message: 'Campaign updated successfully',
-      data: result
+      data: campaign
     });
   } catch (error) {
-    console.error('Error updating campaign:', error);
-    return res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: error.message || 'Failed to update campaign'
+      error: error.message
     });
   }
 };
@@ -346,20 +332,15 @@ const updateCampaign = async (req, res) => {
  */
 const deleteCampaign = async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.user.userId;
-    
-    await campaignService.deleteCampaign(userId, id);
-    
-    return res.status(200).json({
+    await campaignService.deleteCampaign(req.params.id);
+    res.json({
       success: true,
       message: 'Campaign deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting campaign:', error);
-    return res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: error.message || 'Failed to delete campaign'
+      error: error.message
     });
   }
 };

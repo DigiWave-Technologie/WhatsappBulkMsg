@@ -200,18 +200,13 @@ const modifyPassword = async (modifyData) => {
 // Create user service (only for super_admin and authorized admin)
 const createUser = async (userData, creatorId) => {
   try {
-    // Validate required fields
-    if (!userData.username || !userData.password || !userData.firstName || !userData.lastName || !userData.mobileNumber) {
-      throw new Error('Missing required fields');
-    }
-
     // Check if username already exists
     const existingUser = await User.findOne({ username: userData.username });
     if (existingUser) {
       throw new Error('Username already exists');
     }
 
-    // Check if email is provided and unique
+    // Check if email already exists (if provided)
     if (userData.email) {
       const existingEmail = await User.findOne({ email: userData.email });
       if (existingEmail) {
@@ -237,14 +232,35 @@ const createUser = async (userData, creatorId) => {
     // Set canCreateUsers based on role
     const canCreateUsers = userData.role === 'super_admin' || userData.role === 'admin';
 
+    // Create new user with optional fields
     const user = new User({
-      ...userData,
-      createdBy: creatorId,
-      canCreateUsers
+      username: userData.username,
+      password: userData.password,
+      email: userData.email || undefined,
+      firstName: userData.firstName || undefined,
+      lastName: userData.lastName || undefined,
+      mobileNumber: userData.mobileNumber || undefined,
+      role: userData.role || 'user',
+      isActive: userData.isActive !== undefined ? userData.isActive : true,
+      canCreateUsers,
+      createdBy: creatorId
     });
 
+    // Save user
     await user.save();
-    return user;
+
+    // Return user data without sensitive information
+    return {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mobileNumber: user.mobileNumber,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt
+    };
   } catch (error) {
     throw error;
   }

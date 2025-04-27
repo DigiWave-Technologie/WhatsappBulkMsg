@@ -1,14 +1,20 @@
 const Campaign = require('../models/Campaign');
 const MessageLog = require('../models/MessageLog');
 const User = require('../models/User');
+const CreditTransaction = require('../models/CreditTransaction');
+const Template = require('../models/Template');
+const Group = require('../models/Group');
 const creditService = require('./creditsService');
 const whatsappService = require('./whatsappService');
+const crypto = require('crypto');
 
 /**
  * Send a WhatsApp message via API
  */
-const sendMessage = async (userId, to, message, media, template) => {
+const sendMessage = async (userId, messageData) => {
   try {
+    const { recipient, message, template, media, variables } = messageData;
+    
     // Check if user has sufficient credits
     const user = await User.findById(userId);
     if (!user) {
@@ -16,7 +22,7 @@ const sendMessage = async (userId, to, message, media, template) => {
     }
     
     // If not super admin, check credits
-    if (user.role !== 'superadmin') {
+    if (user.role !== 'super_admin') {
       // Determine credit type based on message type
       let creditType = 'virtual_credit'; // Default to virtual_credit
       
@@ -31,21 +37,29 @@ const sendMessage = async (userId, to, message, media, template) => {
       
       // Check if user has sufficient credits
       const userCredit = await creditService.getSenderCredit(userId, creditType);
-      if (userCredit < 1) {
+      if (userCredit < 1 && !user.hasUnlimitedCredits) {
         throw new Error('Insufficient credits');
       }
       
-      // Deduct credit
-      await creditService.decrementCreditByUserId(userId, 1);
+      // Deduct credit if not unlimited
+      if (!user.hasUnlimitedCredits) {
+        await creditService.decrementCreditByUserId(userId, 1);
+      }
     }
     
     // Send message via WhatsApp service
-    const result = await whatsappService.sendMessage(to, message, media, template);
+    const result = await whatsappService.sendMessage({
+      to: recipient,
+      message,
+      template,
+      media,
+      variables
+    });
     
     // Log the message
     await MessageLog.create({
       userId,
-      recipient: to,
+      recipient,
       message,
       media,
       template,
@@ -55,6 +69,65 @@ const sendMessage = async (userId, to, message, media, template) => {
     });
     
     return result;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Send a campaign via API
+ */
+const sendCampaign = async (userId, campaignData) => {
+  try {
+    const { 
+      title, 
+      type, 
+      recipients, 
+      message, 
+      template, 
+      media, 
+      variables,
+      scheduleDate,
+      delayBetweenMessages 
+    } = campaignData;
+
+    // Create campaign
+    const campaign = await Campaign.create({
+      title,
+      type,
+      recipients,
+      message,
+      template,
+      media,
+      variables,
+      scheduleDate,
+      delayBetweenMessages,
+      userId,
+      status: scheduleDate ? 'scheduled' : 'pending'
+    });
+
+    // If no schedule date, send immediately
+    if (!scheduleDate) {
+      // Send messages
+      for (const recipient of recipients) {
+        await sendMessage(userId, {
+          recipient,
+          message,
+          template,
+          media,
+          variables
+        });
+
+        if (delayBetweenMessages) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenMessages * 1000));
+        }
+      }
+
+      campaign.status = 'completed';
+      await campaign.save();
+    }
+
+    return campaign;
   } catch (error) {
     throw error;
   }
@@ -151,6 +224,57 @@ const getReports = async (userId, campaignId, startDate, endDate) => {
 };
 
 /**
+ * Create a template via API
+ */
+const createTemplate = async (userId, { name, content, category, language }) => {
+  try {
+    // Check if user has permission to create templates
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Create template
+    const template = await Template.create({
+      name,
+      content,
+      category,
+      language,
+      createdBy: userId,
+      status: 'pending' // Templates need approval by default
+    });
+
+    return template;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Create a group via API
+ */
+const createGroup = async (userId, { name, contacts }) => {
+  try {
+    // Check if user has permission to create groups
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Create group
+    const group = await Group.create({
+      name,
+      contacts,
+      createdBy: userId
+    });
+
+    return group;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
  * Get credit history via API
  */
 const getCreditHistory = async (userId, { startDate, endDate }) => {
@@ -176,9 +300,60 @@ const getCreditHistory = async (userId, { startDate, endDate }) => {
   }
 };
 
+/**
+ * Generate API key for a user
+ */
+const generateApiKey = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate a random API key
+    const apiKey = crypto.randomBytes(32).toString('hex');
+    
+    // Save API key to user
+    user.apiKey = apiKey;
+    user.apiKeyCreatedAt = new Date();
+    await user.save();
+
+    return { apiKey };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Revoke API key for a user
+ */
+const revokeApiKey = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Remove API key
+    user.apiKey = null;
+    user.apiKeyCreatedAt = null;
+    user.apiKeyLastUsed = null;
+    await user.save();
+
+    return { message: 'API key revoked successfully' };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   sendMessage,
+  sendCampaign,
   scanWhatsappNumber,
   getReports,
-  getCreditHistory
+  getCreditHistory,
+  createTemplate,
+  createGroup,
+  generateApiKey,
+  revokeApiKey
 }; 

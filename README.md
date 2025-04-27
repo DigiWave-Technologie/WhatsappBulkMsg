@@ -386,5 +386,4 @@ class TemplateService {
   }
 }
 
-module.exports = new TemplateService(); "# WhatsappBulkMsg" 
-"# WhatsappBulkMsg" 
+module.exports = new TemplateService(); 

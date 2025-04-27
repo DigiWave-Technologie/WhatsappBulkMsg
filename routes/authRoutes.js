@@ -30,7 +30,7 @@ const upload = multer({ storage });
 router.post('/login', validateLogin, authController.userLogin);
 
 // Protected routes
-router.post('/createUser', authenticateToken, validateCreateUser, authController.createUser);
+router.post('/createUser', authenticateToken, registrationValidation, authController.createUser);
 router.put('/updateUser/:id', authenticateToken, validateUpdateUser, authController.updateUser);
 router.post('/changePassword', authMiddleware, passwordChangeValidation, authController.changePassword);
 router.get('/users', authMiddleware, authController.getAllUsers);

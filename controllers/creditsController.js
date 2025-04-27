@@ -8,10 +8,15 @@ const router = express.Router();
 // Add a user credit
 const transferCredit = async (req, res) => {
   try {
-    const { fromUserId, toUserId, categoryId, creditAmount } = req.body;
+    const { fromUserId, toUserId, categoryId, creditAmount, timeDuration, expiryDate, expiryTime } = req.body;
 
     if (!fromUserId || !toUserId || !categoryId || !creditAmount) {
       return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    // Validate expiry date and time for custom and specific date durations
+    if ((timeDuration === 'custom' || timeDuration === 'specific_date') && (!expiryDate || !expiryTime)) {
+      return res.status(400).json({ error: 'Expiry date and time are required for custom and specific date durations.' });
     }
 
     // Check if user has permission to transfer credits
@@ -23,7 +28,10 @@ const transferCredit = async (req, res) => {
       fromUserId,
       toUserId,
       categoryId,
-      creditAmount
+      creditAmount,
+      timeDuration || 'unlimited',
+      expiryDate,
+      expiryTime
     );
     return res.status(200).json(result);
   } catch (error) {
@@ -203,11 +211,43 @@ const getCreditUsageStats = async (req, res) => {
 const getUserCreditBalance = async (req, res) => {
   try {
     const userId = req.params.userId;
-    const result = await creditService.getUserCreditBalance(userId);
+    const credits = await creditService.getUserCreditBalance(userId);
+    
+    if (credits && credits.length > 0) {
+      res.status(200).json({
+        success: true,
+        message: 'User credit balance retrieved successfully',
+        data: credits
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'No credits found for this user'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Check user credits
+const checkUserCredits = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    // Check if user has permission to check credits
+    if (!checkPermission(req.user, 'check_credits')) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+    
+    const result = await creditService.getUserCreditsByUserId(userId);
     
     res.status(200).json({
       success: true,
-      message: 'User credit balance retrieved successfully',
+      message: 'User credits retrieved successfully',
       data: result
     });
   } catch (error) {
@@ -228,5 +268,6 @@ module.exports = {
   getUserCategory,
   decrementCreditByUser,
   getCreditUsageStats,
-  getUserCreditBalance
+  getUserCreditBalance,
+  checkUserCredits
 };

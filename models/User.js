@@ -34,15 +34,18 @@ const userSchema = new mongoose.Schema({
   },
   firstName: {
     type: String,
-    required: true
+    required: false,
+    trim: true
   },
   lastName: {
     type: String,
-    required: true
+    required: false,
+    trim: true
   },
   mobileNumber: {
     type: String,
-    required: true
+    required: false,
+    trim: true
   },
   role: {
     type: String,

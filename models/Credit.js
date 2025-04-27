@@ -19,6 +19,11 @@ const creditSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  timeDuration: {
+    type: String,
+    enum: ['unlimited', 'daily', 'weekly', 'monthly', 'yearly', 'custom', 'specific_date'],
+    default: 'unlimited'
+  },
   expiryDate: {
     type: Date
   },
@@ -48,7 +53,7 @@ const creditTransactionSchema = new mongoose.Schema({
   },
   creditType: {
     type: String,
-    enum: ['credit', 'debit', 'expiry', 'bonus'],
+    enum: ['credit', 'debit', 'expiry', 'bonus', 'transfer'],
     required: true
   },
   credit: {

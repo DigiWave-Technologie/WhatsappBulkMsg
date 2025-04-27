@@ -1,61 +1,109 @@
 const { Credit, CreditTransaction } = require('../models/Credit');
 const { Category } = require('../models/Category');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 class CreditsService {
   /**
    * Handle credit transfer between users
    */
-  async handleCreditTransfer(fromUserId, toUserId, categoryId, amount) {
-    const session = await Credit.startSession();
-    session.startTransaction();
-
+  async handleCreditTransfer(fromUserId, toUserId, categoryId, creditAmount, timeDuration = 'unlimited', expiryDate = null, expiryTime = null) {
     try {
-      // Get sender and receiver
-      const [sender, receiver] = await Promise.all([
-        User.findById(fromUserId),
-        User.findById(toUserId)
-      ]);
-
-      if (!sender || !receiver) {
-        throw new Error('Invalid sender or receiver');
+      // For super admin, skip credit check
+      const fromUser = await User.findById(fromUserId);
+      if (!fromUser) {
+        throw new Error('Source user not found');
       }
 
-      // Check sender role permissions
-      if (!['superadmin', 'admin', 'reseller'].includes(sender.role)) {
-        throw new Error('Invalid sender role');
+      const toUser = await User.findById(toUserId);
+      if (!toUser) {
+        throw new Error('Destination user not found');
       }
 
-      // Get sender's credit
-      const senderCredit = await this.getSenderCredit(fromUserId, categoryId);
-      if (!senderCredit || senderCredit.credit < amount) {
-        throw new Error('Insufficient credits');
+      // If the source user is not a super admin, check their credit balance
+      if (fromUser.role !== 'super_admin') {
+        const sourceCredit = await Credit.findOne({
+          userId: fromUserId,
+          categoryId: categoryId
+        });
+
+        if (!sourceCredit || sourceCredit.credit < creditAmount) {
+          throw new Error('Insufficient credits');
+        }
+
+        // Update source user's credit
+        await Credit.findOneAndUpdate(
+          { userId: fromUserId, categoryId: categoryId },
+          { $inc: { credit: -creditAmount } }
+        );
       }
 
-      // Deduct credit from sender
-      await this.deductCredit(fromUserId, categoryId, amount, session);
+      // Calculate expiry date based on time duration
+      let finalExpiryDate = null;
+      if (timeDuration !== 'unlimited') {
+        if (timeDuration === 'custom' || timeDuration === 'specific_date') {
+          if (!expiryDate || !expiryTime) {
+            throw new Error('Expiry date and time are required for custom and specific date durations');
+          }
+          
+          // Combine date and time
+          const [hours, minutes] = expiryTime.split(':');
+          finalExpiryDate = new Date(expiryDate);
+          finalExpiryDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          
+          // Validate that the expiry date is in the future
+          if (finalExpiryDate <= new Date()) {
+            throw new Error('Expiry date must be in the future');
+          }
+        } else {
+          const now = new Date();
+          switch (timeDuration) {
+            case 'daily':
+              finalExpiryDate = new Date(now.setDate(now.getDate() + 1));
+              break;
+            case 'weekly':
+              finalExpiryDate = new Date(now.setDate(now.getDate() + 7));
+              break;
+            case 'monthly':
+              finalExpiryDate = new Date(now.setMonth(now.getMonth() + 1));
+              break;
+            case 'yearly':
+              finalExpiryDate = new Date(now.setFullYear(now.getFullYear() + 1));
+              break;
+          }
+        }
+      }
 
-      // Add credit to receiver
-      await this.addCredit(toUserId, categoryId, amount, session);
+      // Update or create destination user's credit
+      await Credit.findOneAndUpdate(
+        { userId: toUserId, categoryId: categoryId },
+        { 
+          $inc: { credit: creditAmount },
+          $set: { 
+            timeDuration: timeDuration,
+            expiryDate: finalExpiryDate
+          }
+        },
+        { upsert: true }
+      );
 
-      // Log transaction
-      await this.logTransaction({
+      // Create transaction record
+      await CreditTransaction.create({
         fromUserId,
         toUserId,
         categoryId,
-        creditType: 'credit',
-        credit: amount,
-        description: `Credit transfer from ${sender.name} to ${receiver.name}`,
-        session
+        credit: creditAmount,
+        creditType: 'transfer',
+        description: `Credit transfer from ${fromUser.username} to ${toUser.username} with ${timeDuration} duration${finalExpiryDate ? ` (expires: ${finalExpiryDate.toLocaleString()})` : ''}`
       });
 
-      await session.commitTransaction();
-      return true;
+      return { 
+        success: true, 
+        message: 'Credit transfer successful',
+        expiryDate: finalExpiryDate ? finalExpiryDate.toLocaleString() : null
+      };
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      session.endSession();
     }
   }
 
@@ -69,7 +117,7 @@ class CreditsService {
   /**
    * Deduct credit from user
    */
-  async deductCredit(userId, categoryId, amount, session = null) {
+  async deductCredit(userId, categoryId, amount) {
     const credit = await Credit.findOne({ userId, categoryId });
     if (!credit) {
       throw new Error('Credit not found');
@@ -81,12 +129,7 @@ class CreditsService {
 
     credit.credit -= amount;
     credit.lastUsed = new Date();
-    
-    if (session) {
-      await credit.save({ session });
-    } else {
-      await credit.save();
-    }
+    await credit.save();
 
     return credit;
   }
@@ -94,7 +137,7 @@ class CreditsService {
   /**
    * Add credit to user
    */
-  async addCredit(userId, categoryId, amount, session = null) {
+  async addCredit(userId, categoryId, amount) {
     let credit = await Credit.findOne({ userId, categoryId });
     
     if (!credit) {
@@ -107,12 +150,7 @@ class CreditsService {
       credit.credit += amount;
     }
 
-    if (session) {
-      await credit.save({ session });
-    } else {
-      await credit.save();
-    }
-
+    await credit.save();
     return credit;
   }
 
@@ -127,8 +165,7 @@ class CreditsService {
     credit,
     description,
     campaignId = null,
-    metadata = {},
-    session = null
+    metadata = {}
   }) {
     const transaction = new CreditTransaction({
       fromUserId,
@@ -141,12 +178,7 @@ class CreditsService {
       metadata
     });
 
-    if (session) {
-      await transaction.save({ session });
-    } else {
-      await transaction.save();
-    }
-
+    await transaction.save();
     return transaction;
   }
 
@@ -164,183 +196,291 @@ class CreditsService {
   /**
    * Get credit transactions with filters
    */
-  async getCreditsTransaction(filters = {}) {
-    const query = {};
-    
-    if (filters.fromUserId) query.fromUserId = filters.fromUserId;
-    if (filters.toUserId) query.toUserId = filters.toUserId;
-    if (filters.categoryId) query.categoryId = filters.categoryId;
-    if (filters.creditType) query.creditType = filters.creditType;
-    
-    if (filters.startDate && filters.endDate) {
-      query.createdAt = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate)
-      };
+  async getCreditsTransaction(userId = null) {
+    try {
+      const query = userId ? { $or: [{ fromUserId: userId }, { toUserId: userId }] } : {};
+      const transactions = await CreditTransaction.find(query)
+        .populate('fromUserId', 'username')
+        .populate('toUserId', 'username')
+        .populate('categoryId', 'name')
+        .sort({ createdAt: -1 })
+        .lean();
+      
+      return transactions;
+    } catch (error) {
+      throw new Error('Failed to get credit transactions');
     }
-
-    return await CreditTransaction.find(query)
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('categoryId', 'name')
-      .sort({ createdAt: -1 })
-      .lean();
   }
 
   /**
    * Get credit transactions for a user
    */
   async getCreditsTransactionByUserId(userId, filters = {}) {
-    const query = {
-      $or: [{ fromUserId: userId }, { toUserId: userId }]
-    };
-    
-    if (filters.categoryId) query.categoryId = filters.categoryId;
-    if (filters.creditType) query.creditType = filters.creditType;
-    
-    if (filters.startDate && filters.endDate) {
-      query.createdAt = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate)
+    try {
+      const query = {
+        $or: [{ fromUserId: userId }, { toUserId: userId }]
       };
-    }
+      
+      if (filters.categoryId) query.categoryId = filters.categoryId;
+      if (filters.creditType) query.creditType = filters.creditType;
+      
+      if (filters.startDate && filters.endDate) {
+        query.createdAt = {
+          $gte: new Date(filters.startDate),
+          $lte: new Date(filters.endDate)
+        };
+      }
 
-    return await CreditTransaction.find(query)
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('categoryId', 'name')
-      .sort({ createdAt: -1 })
-      .lean();
+      const transactions = await CreditTransaction.find(query)
+        .populate('fromUserId', 'username')
+        .populate('toUserId', 'username')
+        .populate('categoryId', 'name')
+        .sort({ createdAt: -1 })
+        .lean();
+      
+      return transactions;
+    } catch (error) {
+      throw new Error('Failed to get user credit transactions');
+    }
   }
 
   /**
    * Get credit transactions for a user and category
    */
   async getCreditsTransactionByUserIdCategoryId(userId, categoryId, filters = {}) {
-    const query = {
-      $or: [{ fromUserId: userId }, { toUserId: userId }],
-      categoryId
-    };
-    
-    if (filters.creditType) query.creditType = filters.creditType;
-    
-    if (filters.startDate && filters.endDate) {
-      query.createdAt = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate)
+    try {
+      const query = {
+        $or: [{ fromUserId: userId }, { toUserId: userId }],
+        categoryId
       };
-    }
+      
+      if (filters.creditType) query.creditType = filters.creditType;
+      
+      if (filters.startDate && filters.endDate) {
+        query.createdAt = {
+          $gte: new Date(filters.startDate),
+          $lte: new Date(filters.endDate)
+        };
+      }
 
-    return await CreditTransaction.find(query)
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('categoryId', 'name')
-      .sort({ createdAt: -1 })
-      .lean();
+      const transactions = await CreditTransaction.find(query)
+        .populate('fromUserId', 'username')
+        .populate('toUserId', 'username')
+        .populate('categoryId', 'name')
+        .sort({ createdAt: -1 })
+        .lean();
+      
+      return transactions;
+    } catch (error) {
+      throw new Error('Failed to get category credit transactions');
+    }
   }
 
   /**
    * Get credit usage statistics
    */
-  async getCreditUsageStats(filters = {}) {
-    const query = {};
-    
-    if (filters.userId) query.toUserId = filters.userId;
-    if (filters.categoryId) query.categoryId = filters.categoryId;
-    
-    if (filters.startDate && filters.endDate) {
-      query.createdAt = {
-        $gte: new Date(filters.startDate),
-        $lte: new Date(filters.endDate)
-      };
+  async getCreditUsageStats(userId) {
+    try {
+      const stats = await CreditTransaction.aggregate([
+        {
+          $match: {
+            fromUserId: new mongoose.Types.ObjectId(userId)
+          }
+        },
+        {
+          $group: {
+            _id: '$categoryId',
+            totalUsed: { $sum: '$creditAmount' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $lookup: {
+            from: 'categories',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'category'
+          }
+        },
+        {
+          $unwind: '$category'
+        }
+      ]);
+
+      return stats;
+    } catch (error) {
+      throw new Error('Failed to get credit usage statistics');
     }
-
-    const stats = await CreditTransaction.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: {
-            categoryId: '$categoryId',
-            creditType: '$creditType'
-          },
-          totalCredits: { $sum: '$credit' },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: '_id.categoryId',
-          foreignField: '_id',
-          as: 'category'
-        }
-      },
-      { $unwind: '$category' },
-      {
-        $project: {
-          _id: 0,
-          categoryId: '$_id.categoryId',
-          categoryName: '$category.name',
-          creditType: '$_id.creditType',
-          totalCredits: 1,
-          count: 1
-        }
-      }
-    ]);
-
-    return stats;
   }
 
   /**
    * Get user credit balance
    */
-  async getUserCreditBalance(userId, categoryId = null) {
-    const query = { userId };
-    if (categoryId) query.categoryId = categoryId;
-
-    const credits = await Credit.find(query)
-      .populate('categoryId', 'name creditCost')
-      .lean();
-
-    return credits;
+  async getUserCreditBalance(userId) {
+    try {
+      const credits = await Credit.find({ userId })
+        .populate('categoryId', 'name creditCost')
+        .lean();
+      
+      return credits;
+    } catch (error) {
+      throw new Error('Failed to get user credit balance');
+    }
   }
 
   /**
-   * Check and handle credit expiry
+   * Handle credit expiry
    */
   async handleCreditExpiry() {
-    const expiredCredits = await Credit.find({
-      expiryDate: { $lt: new Date() },
-      credit: { $gt: 0 }
-    });
-
-    for (const credit of expiredCredits) {
-      const session = await Credit.startSession();
-      session.startTransaction();
-
-      try {
-        // Log expiry transaction
-        await this.logTransaction({
+    try {
+      const now = new Date();
+      
+      // Find all credits with expiry dates that have passed
+      const expiredCredits = await Credit.find({
+        expiryDate: { $lt: now },
+        timeDuration: { $ne: 'unlimited' }
+      });
+      
+      for (const credit of expiredCredits) {
+        // Create transaction record for expired credits
+        await CreditTransaction.create({
           fromUserId: credit.userId,
-          toUserId: credit.userId,
+          toUserId: credit.userId, // Same user for expiry
           categoryId: credit.categoryId,
-          creditType: 'expiry',
           credit: credit.credit,
-          description: 'Credits expired',
-          session
+          creditType: 'expiry',
+          description: `Credits expired due to ${credit.timeDuration} duration`
         });
-
-        // Set credit to 0
+        
+        // Reset credit to 0
         credit.credit = 0;
-        await credit.save({ session });
-
-        await session.commitTransaction();
-      } catch (error) {
-        await session.abortTransaction();
-        console.error('Error handling credit expiry:', error);
-      } finally {
-        session.endSession();
+        credit.expiryDate = null;
+        credit.timeDuration = 'unlimited';
+        await credit.save();
       }
+      
+      return { success: true, message: `Processed ${expiredCredits.length} expired credits` };
+    } catch (error) {
+      throw new Error(`Failed to handle credit expiry: ${error.message}`);
+    }
+  }
+
+  /**
+   * Handle debit operation
+   */
+  async handleDebit(fromUserId, toUserId, categoryId, amount) {
+    try {
+      // Get sender and receiver
+      const [sender, receiver] = await Promise.all([
+        User.findById(fromUserId),
+        User.findById(toUserId)
+      ]);
+
+      if (!sender || !receiver) {
+        throw new Error('Invalid sender or receiver');
+      }
+
+      // Get sender's credit
+      const senderCredit = await this.getSenderCredit(fromUserId, categoryId);
+      if (!senderCredit || senderCredit.credit < amount) {
+        throw new Error('Insufficient credits');
+      }
+
+      // Deduct credit from sender
+      await this.deductCredit(fromUserId, categoryId, amount);
+
+      // Log transaction
+      await this.logTransaction({
+        fromUserId,
+        toUserId,
+        categoryId,
+        creditType: 'debit',
+        credit: amount,
+        description: `Credit debit from ${sender.username} to ${receiver.username}`
+      });
+
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Decrement credit by user ID
+   */
+  async decrementCreditByUserId(userId, amount) {
+    try {
+      // Get user's credits
+      const credits = await Credit.find({ userId });
+      
+      if (!credits.length) {
+        throw new Error('No credits found for user');
+      }
+
+      // Try to deduct from each credit category
+      for (const credit of credits) {
+        if (credit.credit >= amount) {
+          await this.deductCredit(userId, credit.categoryId, amount);
+          
+          // Log transaction
+          await this.logTransaction({
+            fromUserId: userId,
+            toUserId: userId,
+            categoryId: credit.categoryId,
+            creditType: 'debit',
+            credit: amount,
+            description: 'Credit debit'
+          });
+
+          return true;
+        }
+      }
+
+      throw new Error('Insufficient credits across all categories');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get user categories
+   */
+  async getUserCategory(userId) {
+    const credits = await Credit.find({ userId })
+      .populate('categoryId', 'name creditCost')
+      .lean();
+    
+    return credits.map(credit => credit.categoryId);
+  }
+
+  async decrementCreditByUser(userId, categoryId, amount) {
+    try {
+      const credit = await Credit.findOne({
+        userId,
+        categoryId
+      });
+
+      if (!credit || credit.credit < amount) {
+        throw new Error('Insufficient credits');
+      }
+
+      await Credit.findOneAndUpdate(
+        { userId, categoryId },
+        { $inc: { credit: -amount } }
+      );
+
+      await CreditTransaction.create({
+        fromUserId: userId,
+        toUserId: null,
+        categoryId,
+        creditAmount: amount,
+        creditType: 'debit',
+        description: 'Credit debit for service usage'
+      });
+
+      return { success: true, message: 'Credit decremented successfully' };
+    } catch (error) {
+      throw error;
     }
   }
 }
