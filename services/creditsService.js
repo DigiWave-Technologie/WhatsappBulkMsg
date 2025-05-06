@@ -523,20 +523,26 @@ class CreditService {
         throw new Error('Credit transfer not allowed between these roles');
       }
 
-      // Check if fromUser has sufficient credits
-      const fromUserCredit = await Credit.findOne({
-        userId: fromUserId,
-        categoryId
-      });
+      // Super Admin has unlimited credits
+      const needsCreditsCheck = fromUser.role !== 'super_admin';
 
-      if (!fromUserCredit || (fromUserCredit.credit < amount && !fromUserCredit.isUnlimited)) {
-        throw new Error('Insufficient credits');
-      }
+      // Check if fromUser has sufficient credits (skip for super admin)
+      let fromUserCredit;
+      if (needsCreditsCheck) {
+        fromUserCredit = await Credit.findOne({
+          userId: fromUserId,
+          categoryId
+        });
 
-      // Update credits
-      if (!fromUserCredit.isUnlimited) {
-        fromUserCredit.credit -= amount;
-        await fromUserCredit.save();
+        if (!fromUserCredit || (fromUserCredit.credit < amount && !fromUserCredit.isUnlimited)) {
+          throw new Error('Insufficient credits');
+        }
+
+        // Update credits
+        if (!fromUserCredit.isUnlimited) {
+          fromUserCredit.credit -= amount;
+          await fromUserCredit.save();
+        }
       }
 
       let toUserCredit = await Credit.findOne({

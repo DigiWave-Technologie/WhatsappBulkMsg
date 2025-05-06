@@ -9,7 +9,7 @@ const router = express.Router();
 const transferCredit = async (req, res) => {
   try {
     const { toUserId, categoryId, creditAmount, description } = req.body;
-    const fromUserId = req.user._id; // Get from authenticated user
+    const fromUserId = req.user.userId; // Get from authenticated user
 
     if (!toUserId || !categoryId || !creditAmount) {
       return res.status(400).json({ error: 'All fields are required.' });
@@ -37,7 +37,7 @@ const transferCredit = async (req, res) => {
 const debitCredit = async (req, res) => {
   try {
     const { categoryId, creditAmount, campaignId } = req.body;
-    const userId = req.user._id; // Get from authenticated user
+    const userId = req.user.userId; // Get from authenticated user
 
     if (!categoryId || !creditAmount) {
       return res.status(400).json({ error: "Category ID and credit amount are required." });
@@ -63,7 +63,7 @@ const debitCredit = async (req, res) => {
 // Get user's credit balance
 const getUserCreditsByUserId = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user._id;
+    const userId = req.params.userId || req.user.userId;
     const result = await creditService.getUserCreditBalance(userId);
     
     res.status(200).json({ 
@@ -82,7 +82,7 @@ const getUserCreditsByUserId = async (req, res) => {
 // Get credit transactions
 const getCreditsTransaction = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.userId;
     const filters = req.query; // Get filters from query params
 
     const result = await creditService.getCreditTransactions(userId, filters);
@@ -103,7 +103,7 @@ const getCreditsTransaction = async (req, res) => {
 // Get credit usage statistics
 const getCreditUsageStats = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.userId;
     const filters = req.query; // Get filters from query params
 
     const result = await creditService.getCreditUsageStats(userId, filters);
@@ -124,7 +124,7 @@ const getCreditUsageStats = async (req, res) => {
 // Get user's credit balance
 const getUserCreditBalance = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user._id;
+    const userId = req.params.userId || req.user.userId;
     const credits = await creditService.getUserCreditBalance(userId);
     
     res.status(200).json({
@@ -143,7 +143,7 @@ const getUserCreditBalance = async (req, res) => {
 // Check user credits
 const checkUserCredits = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user._id;
+    const userId = req.params.userId || req.user.userId;
     const result = await creditService.getUserCreditBalance(userId);
     
     res.status(200).json({
@@ -162,7 +162,7 @@ const checkUserCredits = async (req, res) => {
 // Get user's credit categories
 const getUserCategory = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.userId;
     const result = await creditService.getUserCategories(userId);
     
     res.status(200).json({
@@ -182,7 +182,7 @@ const getUserCategory = async (req, res) => {
 const decrementCreditByUser = async (req, res) => {
   try {
     const { categoryId, amount } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
     if (!categoryId || !amount) {
       return res.status(400).json({ error: "Category ID and amount are required." });
