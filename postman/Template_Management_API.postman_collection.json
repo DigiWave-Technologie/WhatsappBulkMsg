@@ -1,0 +1,278 @@
+{
+    "info": {
+        "name": "Template Management API",
+        "description": "Collection for managing WhatsApp message templates",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Authentication",
+            "item": [
+                {
+                    "name": "Superadmin Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"superadmin@example.com\",\n    \"password\": \"your_password_here\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["auth", "login"]
+                        },
+                        "description": "Login as superadmin to get authentication token"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.token) {",
+                                    "    pm.environment.set(\"auth_token\", jsonData.token);",
+                                    "    console.log(\"Auth token set successfully\");",
+                                    "} else {",
+                                    "    console.log(\"No token received in response\");",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Template Management",
+            "item": [
+                {
+                    "name": "Create Template",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"welcome_message\",\n    \"content\": \"Hello {{name}}! Welcome to our service.\",\n    \"category\": \"marketing\",\n    \"language\": \"en\",\n    \"variables\": [\n        {\n            \"name\": \"name\",\n            \"type\": \"string\",\n            \"required\": true\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/templates",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates"]
+                        },
+                        "description": "Create a new message template"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.data && jsonData.data._id) {",
+                                    "    pm.environment.set(\"template_id\", jsonData.data._id);",
+                                    "    console.log(\"Template ID set successfully\");",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Get All Templates",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/templates",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates"]
+                        },
+                        "description": "Get all templates for the authenticated user"
+                    }
+                },
+                {
+                    "name": "Get Template by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/templates/{{template_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates", "{{template_id}}"]
+                        },
+                        "description": "Get a specific template by ID"
+                    }
+                },
+                {
+                    "name": "Update Template",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"updated_welcome_message\",\n    \"content\": \"Hi {{name}}! Welcome to our amazing service.\",\n    \"category\": \"marketing\",\n    \"language\": \"en\",\n    \"variables\": [\n        {\n            \"name\": \"name\",\n            \"type\": \"string\",\n            \"required\": true\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/templates/{{template_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates", "{{template_id}}"]
+                        },
+                        "description": "Update an existing template"
+                    }
+                },
+                {
+                    "name": "Delete Template",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/templates/{{template_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates", "{{template_id}}"]
+                        },
+                        "description": "Delete a template"
+                    }
+                },
+                {
+                    "name": "Get Pending Templates",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/templates/pending",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates", "pending"]
+                        },
+                        "description": "Get all pending templates (Admin only)"
+                    }
+                },
+                {
+                    "name": "Approve Template",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/templates/{{template_id}}/approve",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates", "{{template_id}}", "approve"]
+                        },
+                        "description": "Approve a pending template (Admin only)"
+                    }
+                },
+                {
+                    "name": "Reject Template",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"reason\": \"Template content violates our guidelines\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/templates/{{template_id}}/reject",
+                            "host": ["{{base_url}}"],
+                            "path": ["templates", "{{template_id}}", "reject"]
+                        },
+                        "description": "Reject a pending template (Admin only)"
+                    }
+                }
+            ]
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:3000/api",
+            "type": "string"
+        },
+        {
+            "key": "auth_token",
+            "value": "your_auth_token_here",
+            "type": "string"
+        },
+        {
+            "key": "template_id",
+            "value": "template_id_here",
+            "type": "string"
+        }
+    ]
+} 

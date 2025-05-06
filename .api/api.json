@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "waapi",
+      "source": "@waapi/v1.6#3sdcou1im6wmu21z",
+      "integrity": "sha512-Ozf4UATFcWw8q8Oj5M8Xiz2sf6wJO0PUEKckeywFT56YfdPF1tInDzk5e3oVgaFqIsTeM4ELXW09+JqYiWM1JQ==",
+      "installerVersion": "6.1.2"
+    }
+  ]
+}

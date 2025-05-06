@@ -1,0 +1,95 @@
+// server.js (or your main Express file)
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+require("dotenv").config();
+const connectDB = require("./config/mongodb");
+const { errorHandler } = require("./middleware/errorHandler");
+const fs = require("fs");
+const path = require("path");
+const mongoose = require('mongoose');
+
+const app = express();
+const PORT = process.env.PORT || 3000; // Changed to 3000 to match your request
+
+// Middleware
+app.use(express.json());
+app.use(
+  cors({
+    origin: "*",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: "Content-Type,Authorization",
+    credentials: true,
+    optionsSuccessStatus: 204,
+  })
+);
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Import existing routes
+const authRoutes = require("./routes/authRoutes");
+const CreditsRoutes = require("./routes/creditsRoutes");
+const msgTemplateRoutes = require("./routes/msgTemplateRoutes");
+const msgGroupRoutes = require("./routes/msgGroupRoutes");
+const campaignRoutes = require("./routes/campaignRoutes");
+const InternaitionaCampaignRoutes = require("./routes/InternaitionaCampaignRoutes");
+const PersonalCampaignRoutes = require("./routes/PersonalCampaignRoutes");
+const InternaitionapersonalCampaignRoutes = require("./routes/InternaitionapersonalCampaignRoutes");
+const uploadExcelRoutes = require("./routes/uploadExcelRoutes");
+const credittypeRouter = require("./routes/credittypeRouter");
+const templateRoutes = require('./routes/templateRoutes');
+const apiRoutes = require('./routes/apiRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+
+// Serve static files from the uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Connect to MongoDB and start server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDB();
+    console.log('MongoDB connected successfully');
+
+    // Mount routes after MongoDB connection
+    app.use("/api/auth", authRoutes);
+    app.use("/api/credits", CreditsRoutes);
+    app.use("/api/credittype", credittypeRouter);
+    app.use("/api/msggroup", msgGroupRoutes);
+    app.use("/api/msgtemplate", msgTemplateRoutes);
+    app.use("/api/campaigns", campaignRoutes);
+    app.use("/api/Internationalcampaign", InternaitionaCampaignRoutes);
+    app.use("/api/PersonalCampaign", PersonalCampaignRoutes);
+    app.use("/api/InternationalPersonalCampaign", InternaitionapersonalCampaignRoutes);
+    app.use("/api/uploadExcel", uploadExcelRoutes);
+    app.use('/api/templates', templateRoutes);
+    app.use('/api/reports', reportRoutes);
+    app.use('/api/categories', categoryRoutes);
+    app.use('/api', apiRoutes);
+
+    // Error handling middleware
+    app.use(errorHandler);
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log('Available routes:');
+      console.log('POST /api/auth/createUser - Create a new user');
+      console.log('POST /api/auth/login - User login');
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Promise Rejection:', err);
+    process.exit(1);
+});
+
+module.exports = app;
