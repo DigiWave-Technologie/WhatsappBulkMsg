@@ -1,12 +1,13 @@
 const Template = require('../models/Template');
 const { checkPermission } = require('../utils/permissions');
+const User = require('../models/User');
 
 class TemplateService {
     async createTemplate(userId, templateData) {
         try {
             const template = new Template({
                 ...templateData,
-                createdBy: userId
+                userId: userId
             });
 
             await template.save();
@@ -18,7 +19,7 @@ class TemplateService {
 
     async getTemplates(userId, filters = {}) {
         try {
-            const query = { createdBy: userId };
+            const query = { userId: userId };
             if (filters.category) {
                 query.category = filters.category;
             }
@@ -39,7 +40,7 @@ class TemplateService {
         try {
             const template = await Template.findOne({
                 _id: templateId,
-                createdBy: userId
+                userId: userId
             });
 
             if (!template) {
@@ -55,7 +56,7 @@ class TemplateService {
     async updateTemplate(templateId, userId, updateData) {
         try {
             const template = await Template.findOneAndUpdate(
-                { _id: templateId, createdBy: userId },
+                { _id: templateId, userId: userId },
                 updateData,
                 { new: true }
             );
@@ -74,7 +75,7 @@ class TemplateService {
         try {
             const template = await Template.findOneAndDelete({
                 _id: templateId,
-                createdBy: userId
+                userId: userId
             });
 
             if (!template) {
@@ -89,7 +90,12 @@ class TemplateService {
 
     async approveTemplate(templateId, adminId) {
         try {
-            const hasPermission = await checkPermission(adminId, 'approve_templates');
+            const admin = await User.findById(adminId);
+            if (!admin) {
+                throw new Error('Admin not found');
+            }
+
+            const hasPermission = await checkPermission(admin, 'approve_templates');
             if (!hasPermission) {
                 throw new Error('Unauthorized to approve templates');
             }

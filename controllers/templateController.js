@@ -9,7 +9,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     // Validate template data
     await templateService.validateTemplate(templateData);
 
-    const template = await templateService.createTemplate(templateData, userId);
+    const template = await templateService.createTemplate(userId, templateData);
 
     res.status(201).json({
         success: true,
@@ -27,7 +27,7 @@ const updateTemplate = asyncHandler(async (req, res) => {
     // Validate template data
     await templateService.validateTemplate(templateData);
 
-    const template = await templateService.updateTemplate(templateId, templateData, userId);
+    const template = await templateService.updateTemplate(templateId, userId, templateData);
 
     res.status(200).json({
         success: true,

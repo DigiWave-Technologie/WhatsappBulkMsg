@@ -2,7 +2,7 @@ const User = require('../models/User');
 
 // Define role-based permissions
 const rolePermissions = {
-    SuperAdmin: [
+    super_admin: [
         'manage_users',
         'manage_credits',
         'manage_templates',
@@ -12,7 +12,7 @@ const rolePermissions = {
         'manage_api_keys',
         'manage_settings'
     ],
-    Admin: [
+    admin: [
         'manage_users',
         'manage_credits',
         'manage_templates',
@@ -20,13 +20,13 @@ const rolePermissions = {
         'manage_campaigns',
         'view_analytics'
     ],
-    Reseller: [
+    reseller: [
         'manage_credits',
         'manage_templates',
         'manage_campaigns',
         'view_analytics'
     ],
-    User: [
+    user: [
         'manage_templates',
         'manage_campaigns',
         'view_analytics'
@@ -37,7 +37,7 @@ const rolePermissions = {
 const checkPermission = (requiredPermission) => {
     return async (req, res, next) => {
         try {
-            const user = await User.findById(req.user._id);
+            const user = await User.findById(req.user.userId);
             
             if (!user) {
                 return res.status(401).json({ 
@@ -47,7 +47,7 @@ const checkPermission = (requiredPermission) => {
             }
 
             // SuperAdmin has all permissions
-            if (user.role === 'SuperAdmin') {
+            if (user.role === 'super_admin') {
                 return next();
             }
 
@@ -72,7 +72,7 @@ const checkPermission = (requiredPermission) => {
 
 // Helper function to check if user has a specific permission
 const hasPermission = (user, permission) => {
-    if (user.role === 'SuperAdmin') {
+    if (user.role === 'super_admin') {
         return true;
     }
     const userPermissions = rolePermissions[user.role] || [];
@@ -93,7 +93,7 @@ const checkAnyPermission = (permissions) => {
             }
 
             // SuperAdmin has all permissions
-            if (user.role === 'SuperAdmin') {
+            if (user.role === 'super_admin') {
                 return next();
             }
 
@@ -134,7 +134,7 @@ const checkAllPermissions = (permissions) => {
             }
 
             // SuperAdmin has all permissions
-            if (user.role === 'SuperAdmin') {
+            if (user.role === 'super_admin') {
                 return next();
             }
 
