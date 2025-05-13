@@ -1,19 +1,24 @@
 const Template = require('../models/Template');
 const { checkPermission } = require('../utils/permissions');
 const User = require('../models/User');
+const { ApiError } = require('../middleware/errorHandler');
 
 class TemplateService {
     async createTemplate(userId, templateData) {
         try {
             const template = new Template({
                 ...templateData,
-                userId: userId
+                userId,
+                status: 'pending'
             });
 
             await template.save();
             return template;
         } catch (error) {
-            throw new Error(`Failed to create template: ${error.message}`);
+            if (error.code === 11000) {
+                throw new ApiError(400, 'Template with this name and language already exists');
+            }
+            throw error;
         }
     }
 
@@ -44,7 +49,7 @@ class TemplateService {
             });
 
             if (!template) {
-                throw new Error('Template not found');
+                throw new ApiError(404, 'Template not found');
             }
 
             return template;
@@ -53,71 +58,61 @@ class TemplateService {
         }
     }
 
-    async updateTemplate(templateId, userId, updateData) {
-        try {
-            const template = await Template.findOneAndUpdate(
-                { _id: templateId, userId: userId },
-                updateData,
-                { new: true }
-            );
-
-            if (!template) {
-                throw new Error('Template not found');
-            }
-
-            return template;
-        } catch (error) {
-            throw new Error(`Failed to update template: ${error.message}`);
+    async updateTemplate(templateId, userId, templateData) {
+        const template = await Template.findOne({ _id: templateId, userId });
+        
+        if (!template) {
+            throw new ApiError(404, 'Template not found');
         }
+
+        // Only allow updates if template is pending or rejected
+        if (template.status === 'approved') {
+            throw new ApiError(400, 'Cannot update an approved template');
+        }
+
+        Object.assign(template, templateData);
+        await template.save();
+        
+        return template;
     }
 
     async deleteTemplate(templateId, userId) {
-        try {
-            const template = await Template.findOneAndDelete({
-                _id: templateId,
-                userId: userId
-            });
-
-            if (!template) {
-                throw new Error('Template not found');
-            }
-
-            return template;
-        } catch (error) {
-            throw new Error(`Failed to delete template: ${error.message}`);
+        const template = await Template.findOne({ _id: templateId, userId });
+        
+        if (!template) {
+            throw new ApiError(404, 'Template not found');
         }
+
+        // Only allow deletion if template is pending or rejected
+        if (template.status === 'approved') {
+            throw new ApiError(400, 'Cannot delete an approved template');
+        }
+
+        await Template.deleteOne({ _id: templateId });
+        
+        return {
+            message: 'Template deleted successfully'
+        };
     }
 
-    async approveTemplate(templateId, adminId) {
-        try {
-            const admin = await User.findById(adminId);
-            if (!admin) {
-                throw new Error('Admin not found');
-            }
-
-            const hasPermission = await checkPermission(admin, 'approve_templates');
-            if (!hasPermission) {
-                throw new Error('Unauthorized to approve templates');
-            }
-
-            const template = await Template.findByIdAndUpdate(
-                templateId,
-                { 
-                    status: 'approved',
-                    approvedBy: adminId,
-                    approvedAt: new Date()
-                },
-                { new: true }
-            );
-
-            if (!template) {
-                throw new Error('Template not found');
-            }
-
-            return template;
-        } catch (error) {
-            throw new Error(`Failed to approve template: ${error.message}`);
+    async approveTemplate(templateId, approverId) {
+        const template = await Template.findById(templateId);
+        
+        if (!template) {
+            throw new ApiError(404, 'Template not found');
         }
+
+        if (template.status === 'approved') {
+            throw new ApiError(400, 'Template is already approved');
+        }
+
+        template.status = 'approved';
+        template.metadata.approvedBy = approverId;
+        template.metadata.approvedAt = new Date();
+        
+        await template.save();
+        
+        return template;
     }
 
     async processTemplate(template, variables) {
@@ -128,69 +123,128 @@ class TemplateService {
         return content;
     }
 
-    async rejectTemplate(templateId, userId, rejectionReason) {
-        return await Template.findByIdAndUpdate(
-            templateId,
-            {
-                status: 'rejected',
-                'metadata.rejectionReason': rejectionReason
-            },
-            { new: true }
-        );
+    async rejectTemplate(templateId, approverId, reason) {
+        const template = await Template.findById(templateId);
+        
+        if (!template) {
+            throw new ApiError(404, 'Template not found');
+        }
+
+        if (template.status === 'rejected') {
+            throw new ApiError(400, 'Template is already rejected');
+        }
+
+        template.status = 'rejected';
+        template.metadata.rejectionReason = reason;
+        
+        await template.save();
+        
+        return template;
     }
 
     async getUserTemplates(userId, filters = {}) {
-        try {
-            const query = { userId, ...filters };
-            const templates = await Template.find(query).sort({ createdAt: -1 });
-            return templates;
-        } catch (error) {
-            throw new Error(`Failed to get templates: ${error.message}`);
+        const query = { userId };
+        
+        // Apply filters
+        if (filters.status) {
+            query.status = filters.status;
         }
+        if (filters.category) {
+            query.category = filters.category;
+        }
+        if (filters.language) {
+            query.language = filters.language;
+        }
+
+        const templates = await Template.find(query)
+            .sort({ createdAt: -1 });
+        
+        return templates;
     }
 
     async getPendingTemplates() {
-        try {
-            const templates = await Template.find({ status: 'pending' })
-                .sort({ createdAt: -1 })
-                .populate('userId', 'username email');
-            return templates;
-        } catch (error) {
-            throw new Error(`Failed to get pending templates: ${error.message}`);
-        }
+        const templates = await Template.find({ status: 'pending' })
+            .populate('userId', 'username email')
+            .sort({ createdAt: -1 });
+        
+        return templates;
     }
 
     async validateTemplate(templateData) {
         try {
             // Check required fields
-            if (!templateData.name || !templateData.content || !templateData.category || !templateData.language) {
-                throw new Error('Missing required fields');
+            if (!templateData.name || !templateData.components || !templateData.category || !templateData.language) {
+                throw new Error('Missing required fields: name, components, category, and language are required');
             }
 
-            // Validate template name format
+            // Validate template name format (WhatsApp requirements)
             if (!/^[a-zA-Z0-9_-]+$/.test(templateData.name)) {
                 throw new Error('Template name can only contain letters, numbers, underscores, and hyphens');
             }
 
-            // Validate content length
-            if (templateData.content.length > 4096) {
-                throw new Error('Template content exceeds maximum length of 4096 characters');
+            // Validate category (WhatsApp requirements)
+            const validCategories = ['MARKETING', 'UTILITY', 'AUTHENTICATION'];
+            if (!validCategories.includes(templateData.category)) {
+                throw new Error(`Invalid category. Must be one of: ${validCategories.join(', ')}`);
             }
 
-            // Validate variables format
-            if (templateData.variables && Array.isArray(templateData.variables)) {
-                for (const variable of templateData.variables) {
-                    if (!variable.name || typeof variable.name !== 'string') {
-                        throw new Error('Variable name is required and must be a string');
+            // Validate components
+            if (!Array.isArray(templateData.components) || templateData.components.length === 0) {
+                throw new Error('Template must have at least one component');
+            }
+
+            // Validate each component
+            for (const component of templateData.components) {
+                // Validate component type
+                const validTypes = ['HEADER', 'BODY', 'FOOTER', 'BUTTONS'];
+                if (!validTypes.includes(component.type)) {
+                    throw new Error(`Invalid component type. Must be one of: ${validTypes.join(', ')}`);
+                }
+
+                // Validate header format
+                if (component.type === 'HEADER') {
+                    const validFormats = ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'];
+                    if (!validFormats.includes(component.format)) {
+                        throw new Error(`Invalid header format. Must be one of: ${validFormats.join(', ')}`);
                     }
-                    if (!/^[a-zA-Z0-9_]+$/.test(variable.name)) {
-                        throw new Error('Variable name can only contain letters, numbers, and underscores');
+                }
+
+                // Validate text content
+                if (component.type === 'BODY' || (component.type === 'HEADER' && component.format === 'TEXT')) {
+                    if (!component.text) {
+                        throw new Error(`${component.type} component must have text content`);
                     }
-                    if (variable.required !== undefined && typeof variable.required !== 'boolean') {
-                        throw new Error('Variable required property must be a boolean');
+                    if (component.text.length > 1024) {
+                        throw new Error(`${component.type} text exceeds maximum length of 1024 characters`);
                     }
-                    if (variable.type && !['string', 'number', 'date', 'currency'].includes(variable.type)) {
-                        throw new Error('Invalid variable type. Must be one of: string, number, date, currency');
+                }
+
+                // Validate buttons
+                if (component.type === 'BUTTONS') {
+                    if (!component.buttons || !Array.isArray(component.buttons) || component.buttons.length === 0) {
+                        throw new Error('Buttons component must have at least one button');
+                    }
+                    if (component.buttons.length > 10) {
+                        throw new Error('Maximum 10 buttons allowed per template');
+                    }
+
+                    for (const button of component.buttons) {
+                        const validButtonTypes = ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'COPY_CODE'];
+                        if (!validButtonTypes.includes(button.type)) {
+                            throw new Error(`Invalid button type. Must be one of: ${validButtonTypes.join(', ')}`);
+                        }
+                        if (!button.text) {
+                            throw new Error('Button must have text content');
+                        }
+                        if (button.text.length > 25) {
+                            throw new Error('Button text exceeds maximum length of 25 characters');
+                        }
+                        if (button.type === 'URL' && !button.url) {
+                            throw new Error('URL button must have a URL');
+                        }
+                        if (button.type === 'PHONE_NUMBER' && !button.phoneNumber) {
+                            throw new Error('Phone number button must have a phone number');
+                        }
                     }
                 }
             }
@@ -199,6 +253,20 @@ class TemplateService {
         } catch (error) {
             throw new Error(`Template validation failed: ${error.message}`);
         }
+    }
+
+    async formatTemplateForWhatsApp(templateId) {
+        const template = await Template.findById(templateId);
+        
+        if (!template) {
+            throw new ApiError(404, 'Template not found');
+        }
+
+        if (template.status !== 'approved') {
+            throw new ApiError(400, 'Template must be approved before sending');
+        }
+
+        return template.formatForWhatsApp();
     }
 }
 

@@ -6,19 +6,66 @@ const templateSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    content: {
-        type: String,
-        required: true
-    },
     category: {
         type: String,
         required: true,
-        enum: ['marketing', 'utility', 'authentication']
+        enum: ['MARKETING', 'UTILITY', 'AUTHENTICATION']
     },
     language: {
         type: String,
+        required: true,
         default: 'en'
     },
+    components: [{
+        type: {
+            type: String,
+            enum: ['HEADER', 'BODY', 'FOOTER', 'BUTTONS'],
+            required: true
+        },
+        format: {
+            type: String,
+            enum: ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'],
+            required: function() {
+                return this.type === 'HEADER';
+            }
+        },
+        text: {
+            type: String,
+            required: function() {
+                return this.type === 'BODY' || (this.type === 'HEADER' && this.format === 'TEXT');
+            }
+        },
+        buttons: [{
+            type: {
+                type: String,
+                enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'COPY_CODE'],
+                required: true
+            },
+            text: {
+                type: String,
+                required: true
+            },
+            url: {
+                type: String,
+                required: function() {
+                    return this.type === 'URL';
+                }
+            },
+            phoneNumber: {
+                type: String,
+                required: function() {
+                    return this.type === 'PHONE_NUMBER';
+                }
+            },
+            example: [String]
+        }],
+        example: {
+            header_text: [String],
+            body_text: [String],
+            header_handle: [String],
+            header_url: [String]
+        }
+    }],
     status: {
         type: String,
         default: 'pending',
@@ -29,110 +76,125 @@ const templateSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    variables: [{
-        name: String,
-        type: {
-            type: String,
-            enum: ['string', 'number', 'date', 'currency'],
-            default: 'string'
-        },
-        required: {
-            type: Boolean,
-            default: false
-        }
-    }],
     metadata: {
         approvedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
         },
         approvedAt: Date,
-        rejectionReason: String
+        rejectionReason: String,
+        whatsappTemplateId: String,
+        whatsappCategory: String,
+        whatsappLanguage: String,
+        whatsappComponents: [{
+            type: String,
+            format: String,
+            text: String,
+            buttons: [{
+                type: String,
+                text: String,
+                url: String,
+                phoneNumber: String
+            }]
+        }]
     }
 }, {
     timestamps: true
 });
 
-// Method to extract variables from template content
-templateSchema.methods.extractVariables = function() {
-    const variableRegex = /{{([^}]+)}}/g;
-    const matches = this.content.match(variableRegex) || [];
-    this.variables = matches.map(match => ({
-        name: match.slice(2, -2),
-        type: 'string',
-        required: true
-    }));
+// Method to validate template components
+templateSchema.methods.validateComponents = function() {
+    const errors = [];
+    
+    // Check if template has at least one component
+    if (!this.components || this.components.length === 0) {
+        errors.push('Template must have at least one component');
+        return errors;
+    }
+
+    // Validate each component
+    this.components.forEach((component, index) => {
+        // Validate required fields based on component type
+        if (!component.type) {
+            errors.push(`Component ${index + 1} must have a type`);
+        }
+
+        // Validate header format
+        if (component.type === 'HEADER' && !component.format) {
+            errors.push(`Header component must have a format`);
+        }
+
+        // Validate text for BODY or TEXT header
+        if ((component.type === 'BODY' || (component.type === 'HEADER' && component.format === 'TEXT')) && !component.text) {
+            errors.push(`${component.type} component must have text`);
+        }
+
+        // Validate buttons
+        if (component.type === 'BUTTONS') {
+            if (!component.buttons || component.buttons.length === 0) {
+                errors.push('Buttons component must have at least one button');
+            } else {
+                component.buttons.forEach((button, btnIndex) => {
+                    if (!button.type || !button.text) {
+                        errors.push(`Button ${btnIndex + 1} must have type and text`);
+                    }
+                    if (button.type === 'URL' && !button.url) {
+                        errors.push(`URL button ${btnIndex + 1} must have a URL`);
+                    }
+                    if (button.type === 'PHONE_NUMBER' && !button.phoneNumber) {
+                        errors.push(`Phone number button ${btnIndex + 1} must have a phone number`);
+                    }
+                });
+            }
+        }
+    });
+
+    return errors;
+};
+
+// Method to format template for WhatsApp API
+templateSchema.methods.formatForWhatsApp = function() {
+    return {
+        name: this.name,
+        category: this.category,
+        language: this.language,
+        components: this.components.map(component => {
+            const formattedComponent = {
+                type: component.type
+            };
+
+            if (component.format) {
+                formattedComponent.format = component.format;
+            }
+
+            if (component.text) {
+                formattedComponent.text = component.text;
+            }
+
+            if (component.buttons && component.buttons.length > 0) {
+                formattedComponent.buttons = component.buttons.map(button => {
+                    const formattedButton = {
+                        type: button.type,
+                        text: button.text
+                    };
+
+                    if (button.type === 'URL') {
+                        formattedButton.url = button.url;
+                    } else if (button.type === 'PHONE_NUMBER') {
+                        formattedButton.phone_number = button.phoneNumber;
+                    }
+
+                    return formattedButton;
+                });
+            }
+
+            return formattedComponent;
+        })
+    };
 };
 
 // Indexes for better query performance
 templateSchema.index({ userId: 1, status: 1 });
-templateSchema.index({ category: 1, language: 1 });
+templateSchema.index({ name: 1, language: 1 }, { unique: true });
 
-// Pre-save middleware to validate template content
-templateSchema.pre('save', function(next) {
-    // Extract variables if not already done
-    if (!this.variables || this.variables.length === 0) {
-        this.extractVariables();
-    }
-
-    // Validate that all required variables are present in the content
-    const requiredVariables = this.variables.filter(v => v.required);
-    for (const variable of requiredVariables) {
-        const regex = new RegExp(`{{${variable.name}}}`, 'g');
-        if (!regex.test(this.content)) {
-            next(new Error(`Required variable ${variable.name} is not present in the template content`));
-            return;
-        }
-    }
-    next();
-});
-
-// Method to validate template variables against provided values
-templateSchema.methods.validateVariables = function(values) {
-    const errors = [];
-    for (const variable of this.variables) {
-        const value = values[variable.name];
-        
-        // Check required variables
-        if (variable.required && !value) {
-            errors.push(`Variable ${variable.name} is required`);
-            continue;
-        }
-
-        // Skip validation if value is not provided
-        if (!value) continue;
-
-        // Validate type
-        switch (variable.type) {
-            case 'number':
-                if (isNaN(value)) {
-                    errors.push(`Variable ${variable.name} must be a number`);
-                }
-                break;
-            case 'date':
-                if (isNaN(Date.parse(value))) {
-                    errors.push(`Variable ${variable.name} must be a valid date`);
-                }
-                break;
-            case 'currency':
-                if (isNaN(value) || value < 0) {
-                    errors.push(`Variable ${variable.name} must be a valid currency amount`);
-                }
-                break;
-        }
-    }
-    return errors;
-};
-
-// Method to replace variables in template content
-templateSchema.methods.replaceVariables = function(values) {
-    let content = this.content;
-    for (const [key, value] of Object.entries(values)) {
-        const regex = new RegExp(`{{${key}}}`, 'g');
-        content = content.replace(regex, value);
-    }
-    return content;
-};
-
-// Export the schema and model
 module.exports = mongoose.models.Template || mongoose.model('Template', templateSchema);

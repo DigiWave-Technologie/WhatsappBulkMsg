@@ -1,0 +1,220 @@
+{
+    "info": {
+        "name": "WhatsApp Bulk Campaign",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Templates",
+            "item": [
+                {
+                    "name": "Create Template",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"welcome_message\",\n    \"category\": \"MARKETING\",\n    \"language\": \"en\",\n    \"components\": [\n        {\n            \"type\": \"HEADER\",\n            \"format\": \"TEXT\",\n            \"text\": \"Welcome to Our Service! 🎉\"\n        },\n        {\n            \"type\": \"BODY\",\n            \"text\": \"Hello {{name}}, thank you for joining us! We're excited to have you on board.\"\n        },\n        {\n            \"type\": \"BUTTONS\",\n            \"buttons\": [\n                {\n                    \"type\": \"QUICK_REPLY\",\n                    \"text\": \"Get Started\"\n                },\n                {\n                    \"type\": \"URL\",\n                    \"text\": \"Visit Website\",\n                    \"url\": \"https://example.com\"\n                }\n            ]\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/templates",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get User Templates",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/templates?status=pending&category=MARKETING&language=en",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates"],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "pending"
+                                },
+                                {
+                                    "key": "category",
+                                    "value": "MARKETING"
+                                },
+                                {
+                                    "key": "language",
+                                    "value": "en"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Template by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/templates/:templateId",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates", ":templateId"],
+                            "variable": [
+                                {
+                                    "key": "templateId",
+                                    "value": "template_id_here"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Template",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"welcome_message_updated\",\n    \"category\": \"MARKETING\",\n    \"language\": \"en\",\n    \"components\": [\n        {\n            \"type\": \"HEADER\",\n            \"format\": \"TEXT\",\n            \"text\": \"Welcome to Our Service! 🎉\"\n        },\n        {\n            \"type\": \"BODY\",\n            \"text\": \"Hello {{name}}, welcome to our amazing service! We're thrilled to have you join us.\"\n        },\n        {\n            \"type\": \"BUTTONS\",\n            \"buttons\": [\n                {\n                    \"type\": \"QUICK_REPLY\",\n                    \"text\": \"Get Started\"\n                },\n                {\n                    \"type\": \"URL\",\n                    \"text\": \"Learn More\",\n                    \"url\": \"https://example.com/learn-more\"\n                }\n            ]\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/templates/:templateId",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates", ":templateId"],
+                            "variable": [
+                                {
+                                    "key": "templateId",
+                                    "value": "template_id_here"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Approve Template",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/templates/:templateId/approve",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates", ":templateId", "approve"],
+                            "variable": [
+                                {
+                                    "key": "templateId",
+                                    "value": "template_id_here"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Reject Template",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"reason\": \"Template content violates our guidelines\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/templates/:templateId/reject",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates", ":templateId", "reject"],
+                            "variable": [
+                                {
+                                    "key": "templateId",
+                                    "value": "template_id_here"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Template",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/templates/:templateId",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "templates", ":templateId"],
+                            "variable": [
+                                {
+                                    "key": "templateId",
+                                    "value": "template_id_here"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:3000"
+        },
+        {
+            "key": "auth_token",
+            "value": "your_auth_token_here"
+        }
+    ]
+} 

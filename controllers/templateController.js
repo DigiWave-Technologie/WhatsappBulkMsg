@@ -1,5 +1,6 @@
 const templateService = require('../services/templateService');
 const { asyncHandler } = require('../middleware/errorHandler');
+const Template = require('../models/Template');
 
 // Create a new template
 const createTemplate = asyncHandler(async (req, res) => {
@@ -7,14 +8,23 @@ const createTemplate = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
 
     // Validate template data
-    await templateService.validateTemplate(templateData);
+    const template = new Template(templateData);
+    const validationErrors = template.validateComponents();
+    
+    if (validationErrors.length > 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Template validation failed',
+            errors: validationErrors
+        });
+    }
 
-    const template = await templateService.createTemplate(userId, templateData);
+    const createdTemplate = await templateService.createTemplate(userId, templateData);
 
     res.status(201).json({
         success: true,
         message: 'Template created successfully',
-        data: template
+        data: createdTemplate
     });
 });
 
@@ -25,14 +35,23 @@ const updateTemplate = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
 
     // Validate template data
-    await templateService.validateTemplate(templateData);
+    const template = new Template(templateData);
+    const validationErrors = template.validateComponents();
+    
+    if (validationErrors.length > 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Template validation failed',
+            errors: validationErrors
+        });
+    }
 
-    const template = await templateService.updateTemplate(templateId, userId, templateData);
+    const updatedTemplate = await templateService.updateTemplate(templateId, userId, templateData);
 
     res.status(200).json({
         success: true,
         message: 'Template updated successfully',
-        data: template
+        data: updatedTemplate
     });
 });
 
