@@ -63,39 +63,7 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-const checkPasswordChangeRequired = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    
-    if (!user) {
-      throw new ApiError(401, 'User not found');
-    }
-
-    if (user.requirePasswordChange) {
-      return res.status(403).json({
-        success: false,
-        message: 'Password change required before performing this action',
-        requirePasswordChange: true
-      });
-    }
-
-    next();
-  } catch (error) {
-    if (error instanceof ApiError) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message
-      });
-    }
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
-};
-
 module.exports = {
   authMiddleware,
-  adminMiddleware,
-  checkPasswordChangeRequired
+  adminMiddleware
 };

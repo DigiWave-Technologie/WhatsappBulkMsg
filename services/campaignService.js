@@ -12,81 +12,142 @@ const Credit = require('../models/Credit');
 const MessageLog = require('../models/MessageLog');
 const Group = require('../models/Group'); // Represents contact groups
 const { processSpintax } = require('../utils/helpers'); // <-- Import the new helper
+const csv = require('csv-parse');
+const fs = require('fs');
+const path = require('path');
+const { validatePhoneNumber } = require('../middleware/validateRequest');
 
 class CampaignService {
     // Create a new campaign
     async createCampaign(userId, campaignData) {
-        // Destructure new fields along with existing ones
-        const { name, templateId, contactGroupId, scheduledAt, targetType = 'individual', targetId } = campaignData;
+        try {
+            // Validate campaign type specific data
+            this.validateCampaignData(campaignData);
 
-        // Validate template
-        const template = await Template.findOne({ _id: templateId, userId });
-        if (!template) {
-            throw new Error('Template not found');
+            // If template is provided, validate and attach it
+            if (campaignData.template) {
+                const template = await Template.findById(campaignData.template);
+                if (!template) {
+                    throw new ApiError(404, 'Template not found');
+                }
+                // Validate template type matches campaign type
+                if (template.type !== campaignData.type) {
+                    throw new ApiError(400, 'Template type does not match campaign type');
+                }
+            }
+
+            // Process recipients based on type
+            if (campaignData.recipients.type === 'csv') {
+                await this.processCSVRecipients(campaignData.recipients.csvFile);
+            } else if (campaignData.recipients.type === 'numbers') {
+                this.validatePhoneNumbers(campaignData.recipients.numbers);
+            }
+
+            const campaign = new Campaign({
+                ...campaignData,
+                createdBy: userId,
+                stats: {
+                    total: this.getTotalRecipients(campaignData.recipients),
+                    sent: 0,
+                    delivered: 0,
+                    read: 0,
+                    failed: 0,
+                    responses: []
+                }
+            });
+
+            await campaign.save();
+            return campaign;
+        } catch (error) {
+            throw error;
         }
-
-        let totalRecipients = 0;
-        let group = null;
-
-        // Validate based on targetType
-        if (targetType === 'individual') {
-            if (!contactGroupId) {
-                throw new Error('Contact group ID is required for individual campaigns.');
-            }
-            group = await Group.findOne({ _id: contactGroupId, userId });
-            if (!group) {
-                throw new Error('Contact group not found');
-            }
-            totalRecipients = group.contacts.length;
-        } else if (targetType === 'group' || targetType === 'community' || targetType === 'channel') {
-            if (!targetId) {
-                throw new Error(`Target ID (Group/Community/Channel ID) is required for ${targetType} campaigns.`);
-            }
-            // For group/community/channel, we send one message to the target ID
-            totalRecipients = 1;
-            // Note: Validation of the targetId (e.g., checking if the group/channel exists via WhatsApp API)
-            // might be necessary here or before starting the campaign.
-        } else {
-            throw new Error(`Invalid target type: ${targetType}`);
-        }
-
-
-        // Create campaign
-        const campaign = new Campaign({
-            name,
-            userId,
-            templateId,
-            contactGroupId: targetType === 'individual' ? contactGroupId : null, // Store contactGroupId only if individual
-            scheduledAt,
-            totalRecipients,
-            status: scheduledAt ? 'scheduled' : 'draft',
-            targetType, // Store the target type
-            targetId: targetType !== 'individual' ? targetId : null // Store targetId if not individual
-        });
-
-        await campaign.save();
-        return campaign;
     }
 
-    // Get campaigns with pagination and filters
-    async getCampaigns(userId, filters = {}) {
-        const query = { userId };
+    // Process CSV file for recipients
+    async processCSVRecipients(csvFile) {
+        try {
+            const filePath = path.join(__dirname, '..', csvFile.url);
+            const fileContent = fs.readFileSync(filePath, 'utf-8');
+            
+            const parser = csv.parse({
+                columns: true,
+                skip_empty_lines: true
+            });
 
-        if (filters.status) {
-            query.status = filters.status;
+            const records = [];
+            parser.on('readable', function() {
+                let record;
+                while (record = parser.read()) {
+                    records.push(record);
+                }
+            });
+
+            parser.on('error', function(err) {
+                throw new ApiError(400, 'Error processing CSV file: ' + err.message);
+            });
+
+            parser.write(fileContent);
+            parser.end();
+
+            return records;
+        } catch (error) {
+            throw new ApiError(400, 'Error processing CSV file: ' + error.message);
         }
+    }
 
-        if (filters.startDate && filters.endDate) {
-            query.createdAt = {
-                $gte: new Date(filters.startDate),
-                $lte: new Date(filters.endDate)
-            };
+    // Validate phone numbers
+    validatePhoneNumbers(numbers) {
+        const invalidNumbers = numbers.filter(number => !this.validatePhoneNumber(number));
+        if (invalidNumbers.length > 0) {
+            throw new ApiError(400, `Invalid phone numbers found: ${invalidNumbers.join(', ')}`);
         }
+    }
 
-        return Campaign.find(query)
-            .populate('templateId', 'name content')
-            .populate('groupId', 'name')
-            .sort({ createdAt: -1 });
+    // Get total number of recipients
+    getTotalRecipients(recipients) {
+        switch (recipients.type) {
+            case 'numbers':
+                return recipients.numbers.length;
+            case 'csv':
+                return recipients.csvFile.totalRows;
+            case 'group':
+            case 'channel':
+                return 1; // These will be expanded when sending
+            default:
+                return 0;
+        }
+    }
+
+    // Validate campaign data based on type
+    validateCampaignData(data) {
+        switch (data.type) {
+            case 'quick':
+                if (!data.message.text) {
+                    throw new ApiError(400, 'Quick campaign must have message text');
+                }
+                break;
+            case 'csv':
+                if (!data.message.variables || data.message.variables.length === 0) {
+                    throw new ApiError(400, 'CSV campaign must have variables defined');
+                }
+                break;
+            case 'button':
+                if (!data.buttons || data.buttons.length === 0) {
+                    throw new ApiError(400, 'Button campaign must have at least one button');
+                }
+                break;
+            case 'poll':
+                if (!data.poll.question || !data.poll.options || data.poll.options.length < 2) {
+                    throw new ApiError(400, 'Poll campaign must have a question and at least 2 options');
+                }
+                break;
+            case 'group':
+            case 'channel':
+                if (!data.recipients.groupId && !data.recipients.channelId) {
+                    throw new ApiError(400, 'Group/Channel campaign must have a group or channel ID');
+                }
+                break;
+        }
     }
 
     // Get campaign by ID

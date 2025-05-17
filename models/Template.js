@@ -6,195 +6,256 @@ const templateSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    category: {
+    description: {
         type: String,
-        required: true,
-        enum: ['MARKETING', 'UTILITY', 'AUTHENTICATION']
+        trim: true
     },
-    language: {
+    type: {
         type: String,
-        required: true,
-        default: 'en'
-    },
-    components: [{
-        type: {
-            type: String,
-            enum: ['HEADER', 'BODY', 'FOOTER', 'BUTTONS'],
-            required: true
-        },
-        format: {
-            type: String,
-            enum: ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'],
-            required: function() {
-                return this.type === 'HEADER';
-            }
-        },
-        text: {
-            type: String,
-            required: function() {
-                return this.type === 'BODY' || (this.type === 'HEADER' && this.format === 'TEXT');
-            }
-        },
-        buttons: [{
-            type: {
-                type: String,
-                enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'COPY_CODE'],
-                required: true
-            },
-            text: {
-                type: String,
-                required: true
-            },
-            url: {
-                type: String,
-                required: function() {
-                    return this.type === 'URL';
-                }
-            },
-            phoneNumber: {
-                type: String,
-                required: function() {
-                    return this.type === 'PHONE_NUMBER';
-                }
-            },
-            example: [String]
-        }],
-        example: {
-            header_text: [String],
-            body_text: [String],
-            header_handle: [String],
-            header_url: [String]
-        }
-    }],
-    status: {
-        type: String,
-        default: 'pending',
-        enum: ['pending', 'approved', 'rejected']
+        enum: ['quick', 'csv', 'button', 'dp', 'poll', 'group', 'channel'],
+        required: true
     },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    metadata: {
-        approvedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-        },
-        approvedAt: Date,
-        rejectionReason: String,
-        whatsappTemplateId: String,
-        whatsappCategory: String,
-        whatsappLanguage: String,
-        whatsappComponents: [{
+    message: {
+        text: {
             type: String,
-            format: String,
-            text: String,
-            buttons: [{
+            required: true
+        },
+        variables: [{
+            name: String,
+            type: {
                 type: String,
-                text: String,
-                url: String,
-                phoneNumber: String
-            }]
+                enum: ['text', 'number', 'date', 'currency', 'boolean', 'phone_number']
+            },
+            required: Boolean,
+            description: String,
+            defaultValue: String
         }]
+    },
+    media: {
+        type: {
+            type: String,
+            enum: ['image', 'video', 'document', 'audio', 'sticker', 'location', 'dp', 'none'],
+            default: 'none'
+        },
+        url: String,
+        caption: String,
+        filename: String
+    },
+    buttons: [{
+        type: {
+            type: String,
+            enum: ['quick_reply', 'url', 'phone_number', 'copy_code', 'call_to_action']
+        },
+        text: String,
+        value: String, // URL, phone number, or code to copy
+        position: Number
+    }],
+    poll: {
+        question: String,
+        options: [{
+            text: String,
+            id: String
+        }],
+        allowMultipleAnswers: {
+            type: Boolean,
+            default: false
+        },
+        anonymous: {
+            type: Boolean,
+            default: true
+        }
+    },
+    category: {
+        type: String,
+        required: true
+    },
+    tags: [String],
+    isPublic: {
+        type: Boolean,
+        default: false
+    },
+    usageCount: {
+        type: Number,
+        default: 0
+    },
+    lastUsed: {
+        type: Date
+    },
+    metadata: {
+        language: {
+            type: String,
+            default: 'en'
+        },
+        version: {
+            type: String,
+            default: '1.0'
+        }
+    },
+    // Meta Graph API template data
+    metaTemplate: {
+        name: String,
+        language: {
+            code: String
+        },
+        namespace: String,
+        status: {
+            type: String,
+            enum: ['PENDING', 'APPROVED', 'REJECTED', 'DISABLED'],
+            default: 'PENDING'
+        },
+        category: {
+            type: String,
+            enum: [
+                'ACCOUNT_UPDATE', 'PAYMENT_UPDATE', 'PERSONAL_FINANCE_UPDATE',
+                'SHIPPING_UPDATE', 'RESERVATION_UPDATE', 'ISSUE_RESOLUTION',
+                'APPOINTMENT_UPDATE', 'TRANSPORTATION_UPDATE', 'TICKET_UPDATE',
+                'ALERT_UPDATE', 'AUTO_REPLY', 'MARKETING'
+            ]
+        },
+        components: [{
+            type: {
+                type: String,
+                enum: ['HEADER', 'BODY', 'FOOTER', 'BUTTONS'],
+                required: true
+            },
+            text: String,
+            format: {
+                type: String,
+                enum: ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'],
+                default: 'TEXT'
+            },
+            example: {
+                header_text: [String],
+                body_text: [[String]],
+                header_handle: [String]
+            }
+        }],
+        rejectionReason: String
     }
 }, {
     timestamps: true
 });
 
-// Method to validate template components
-templateSchema.methods.validateComponents = function() {
-    const errors = [];
+// Indexes for better query performance
+templateSchema.index({ userId: 1, type: 1 });
+templateSchema.index({ category: 1, tags: 1 });
+templateSchema.index({ isPublic: 1 });
+templateSchema.index({ 'metaTemplate.name': 1, 'metaTemplate.language.code': 1 });
+
+// Methods
+templateSchema.methods.incrementUsage = async function() {
+    this.usageCount += 1;
+    this.lastUsed = new Date();
+    return this.save();
+};
+
+templateSchema.methods.clone = async function(userId) {
+    const templateData = this.toObject();
+    delete templateData._id;
+    delete templateData.createdAt;
+    delete templateData.updatedAt;
+    templateData.userId = userId;
+    templateData.usageCount = 0;
+    templateData.lastUsed = null;
     
-    // Check if template has at least one component
-    if (!this.components || this.components.length === 0) {
-        errors.push('Template must have at least one component');
-        return errors;
+    const Template = mongoose.model('Template');
+    return Template.create(templateData);
+};
+
+// Method to convert template to Meta WhatsApp API format
+templateSchema.methods.toMetaApiFormat = function() {
+    // Base message template structure for Meta API
+    const metaTemplate = {
+        name: this.metaTemplate.name || this.name.toLowerCase().replace(/\s+/g, '_'),
+        language: this.metaTemplate.language || { code: 'en_US' },
+        category: this.metaTemplate.category || 'MARKETING',
+        components: []
+    };
+
+    // Add header if media exists
+    if (this.media && this.media.type !== 'none') {
+        const headerComponent = {
+            type: 'HEADER',
+            format: this.media.type.toUpperCase()
+        };
+        
+        // Add example URLs for media
+        if (this.media.url) {
+            headerComponent.example = {
+                header_handle: [this.media.url]
+            };
+        }
+        
+        metaTemplate.components.push(headerComponent);
     }
 
-    // Validate each component
-    this.components.forEach((component, index) => {
-        // Validate required fields based on component type
-        if (!component.type) {
-            errors.push(`Component ${index + 1} must have a type`);
-        }
-
-        // Validate header format
-        if (component.type === 'HEADER' && !component.format) {
-            errors.push(`Header component must have a format`);
-        }
-
-        // Validate text for BODY or TEXT header
-        if ((component.type === 'BODY' || (component.type === 'HEADER' && component.format === 'TEXT')) && !component.text) {
-            errors.push(`${component.type} component must have text`);
-        }
-
-        // Validate buttons
-        if (component.type === 'BUTTONS') {
-            if (!component.buttons || component.buttons.length === 0) {
-                errors.push('Buttons component must have at least one button');
-            } else {
-                component.buttons.forEach((button, btnIndex) => {
-                    if (!button.type || !button.text) {
-                        errors.push(`Button ${btnIndex + 1} must have type and text`);
-                    }
-                    if (button.type === 'URL' && !button.url) {
-                        errors.push(`URL button ${btnIndex + 1} must have a URL`);
-                    }
-                    if (button.type === 'PHONE_NUMBER' && !button.phoneNumber) {
-                        errors.push(`Phone number button ${btnIndex + 1} must have a phone number`);
-                    }
-                });
+    // Add body text
+    if (this.message && this.message.text) {
+        const bodyComponent = {
+            type: 'BODY',
+            text: this.message.text,
+            example: {
+                body_text: [[]]
             }
+        };
+        
+        // Add variable examples
+        if (this.message.variables && this.message.variables.length > 0) {
+            const examples = this.message.variables.map(v => v.defaultValue || `example_${v.name}`);
+            bodyComponent.example.body_text[0] = examples;
         }
-    });
+        
+        metaTemplate.components.push(bodyComponent);
+    }
 
-    return errors;
+    // Add footer if exists
+    if (this.footer) {
+        metaTemplate.components.push({
+            type: 'FOOTER',
+            text: this.footer
+        });
+    }
+
+    // Add buttons if they exist
+    if (this.buttons && this.buttons.length > 0) {
+        const buttonComponent = {
+            type: 'BUTTONS',
+            buttons: this.buttons.map(button => {
+                // Convert to Meta button format based on type
+                switch (button.type) {
+                    case 'url':
+                        return {
+                            type: 'URL',
+                            text: button.text,
+                            url: button.value
+                        };
+                    case 'phone_number':
+                        return {
+                            type: 'PHONE_NUMBER',
+                            text: button.text,
+                            phone_number: button.value
+                        };
+                    case 'quick_reply':
+                    default:
+                        return {
+                            type: 'QUICK_REPLY',
+                            text: button.text
+                        };
+                }
+            })
+        };
+        
+        metaTemplate.components.push(buttonComponent);
+    }
+
+    return metaTemplate;
 };
 
-// Method to format template for WhatsApp API
-templateSchema.methods.formatForWhatsApp = function() {
-    return {
-        name: this.name,
-        category: this.category,
-        language: this.language,
-        components: this.components.map(component => {
-            const formattedComponent = {
-                type: component.type
-            };
+const Template = mongoose.model('Template', templateSchema);
 
-            if (component.format) {
-                formattedComponent.format = component.format;
-            }
-
-            if (component.text) {
-                formattedComponent.text = component.text;
-            }
-
-            if (component.buttons && component.buttons.length > 0) {
-                formattedComponent.buttons = component.buttons.map(button => {
-                    const formattedButton = {
-                        type: button.type,
-                        text: button.text
-                    };
-
-                    if (button.type === 'URL') {
-                        formattedButton.url = button.url;
-                    } else if (button.type === 'PHONE_NUMBER') {
-                        formattedButton.phone_number = button.phoneNumber;
-                    }
-
-                    return formattedButton;
-                });
-            }
-
-            return formattedComponent;
-        })
-    };
-};
-
-// Indexes for better query performance
-templateSchema.index({ userId: 1, status: 1 });
-templateSchema.index({ name: 1, language: 1 }, { unique: true });
-
-module.exports = mongoose.models.Template || mongoose.model('Template', templateSchema);
+module.exports = Template;

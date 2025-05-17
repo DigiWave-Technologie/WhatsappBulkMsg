@@ -13,7 +13,8 @@ const app = express();
 const PORT = process.env.PORT || 3000; // Changed to 3000 to match your request
 
 // Middleware
-app.use(express.json());
+// Removed global body parsing middleware to avoid interfering with Multer
+// app.use(express.json());
 app.use(
   cors({
     origin: "*",
@@ -23,8 +24,9 @@ app.use(
     optionsSuccessStatus: 204,
   })
 );
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Removed global body parsing middleware
+// app.use(bodyParser.json());
+// app.use(bodyParser.urlencoded({ extended: true }));
 
 // Import existing routes
 const authRoutes = require("./routes/authRoutes");
@@ -58,6 +60,8 @@ const startServer = async () => {
     app.use("/api/credittype", credittypeRouter);
     app.use("/api/msggroup", msgGroupRoutes);
     app.use("/api/msgtemplate", msgTemplateRoutes);
+    app.use("/api/msgtemplate", msgTemplateRoutes);
+    app.use("/api/msggroup", msgGroupRoutes);
     app.use("/api/campaigns", campaignRoutes);
     app.use("/api/Internationalcampaign", InternaitionaCampaignRoutes);
     app.use("/api/PersonalCampaign", PersonalCampaignRoutes);

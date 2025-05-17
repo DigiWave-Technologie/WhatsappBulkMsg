@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema({
   },
   requirePasswordChange: {
     type: Boolean,
-    default: true
+    default: false
   },
   previousPasswords: [{
     password: String,
@@ -106,6 +106,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['super_admin', 'admin', 'reseller', 'user'],
     default: 'user'
+  },
+  profilePicture: {
+    type: String,
+    default: null
   },
   // UI-specific permissions
   permissions: {

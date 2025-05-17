@@ -26,6 +26,10 @@ const loginValidation = [
 
 // Registration validation (for creating new users)
 const registrationValidation = [
+  body('username')
+    .trim()
+    .notEmpty()
+    .withMessage('Username is required'),
   body('firstName')
     .optional()
     .trim()
@@ -116,9 +120,48 @@ const userUpdateValidation = [
   validate
 ];
 
+const validateCampaign = async (req, res, next) => {
+  try {
+    const { recipients, schedule, type } = req.body;
+
+    // Validate recipients
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      throw new Error('Recipients are required and must be an array');
+    }
+
+    // Validate phone numbers
+    recipients.forEach(recipient => {
+      if (!recipient.phoneNumber) {
+        throw new Error('Phone number is required for each recipient');
+      }
+      validatePhoneNumber(recipient.phoneNumber);
+    });
+
+    // Validate schedule
+    if (!schedule || !schedule.startAt) {
+      throw new Error('Schedule start time is required');
+    }
+
+    // Validate recurring campaign data
+    if (type === 'recurring') {
+      if (!req.body.recurringSchedule || !req.body.recurringSchedule.frequency) {
+        throw new Error('Recurring schedule frequency is required for recurring campaigns');
+      }
+    }
+
+    next();
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   loginValidation,
   registrationValidation,
   passwordChangeValidation,
-  userUpdateValidation
+  userUpdateValidation,
+  validateCampaign
 }; 

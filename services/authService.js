@@ -6,6 +6,8 @@ const jwtSecretKey = process.env.JWT_SECRET || "HELLOKRUPALSINH";
 const { ApiError } = require('../middleware/errorHandler');
 const crypto = require('crypto');
 const { validatePasswordStrength } = require('../middleware/validateRequest');
+const path = require('path');
+const fs = require('fs');
 
 // User login service
 const userLogin = async ({ username, password }, deviceInfo) => {
@@ -338,6 +340,7 @@ const createUser = async (userData, creatorId) => {
       lastName: userData.lastName || undefined,
       mobileNumber: userData.mobileNumber || undefined,
       role: userData.role || 'user',
+      profilePicture: userData.profilePicture || null,
       // UI-specific permissions
       permissions: {
         virtual: userData.permissions?.virtual || false,
@@ -350,8 +353,7 @@ const createUser = async (userData, creatorId) => {
       isActive: userData.isActive !== undefined ? userData.isActive : true,
       canCreateUsers: defaultRolePermissions.canCreateUsers,
       createdBy: creatorId,
-      // Set requirePasswordChange to true for all users except superadmins
-      requirePasswordChange: userData.role !== 'super_admin'
+      requirePasswordChange: false // Removed forced password change
     });
 
     // Save user
@@ -382,7 +384,8 @@ const createUser = async (userData, creatorId) => {
         whatsappNumbers: user.whatsappNumbers || [],
         messageLimits: user.messageLimits || {},
         senderIds: user.senderIds || [],
-        requirePasswordChange: user.requirePasswordChange
+        requirePasswordChange: user.requirePasswordChange,
+        profilePicture: user.profilePicture
       }
     };
   } catch (error) {
@@ -697,13 +700,17 @@ const getAllUsers = async (requesterId) => {
   }
 
   let query = {};
-  
+
   // Super admin can see all users
   if (requester.role === 'super_admin') {
     query = {};
   }
-  // Admin can see users they created and users below their role
+  // Admin can see users only if they have canViewAllUsers permission
   else if (requester.role === 'admin') {
+    if (!requester.rolePermissions?.canViewAllUsers) {
+      throw new ApiError(403, 'Not authorized to view users');
+    }
+    // Admins with permission can see users they created and users below their role
     query = {
       $or: [
         { createdBy: requesterId },
@@ -723,7 +730,7 @@ const getAllUsers = async (requesterId) => {
   const users = await User.find(query)
     .select('-password -sessions')
     .populate('createdBy', 'firstName lastName email');
-  
+
   return users;
 };
 
@@ -808,6 +815,114 @@ const revokeApiKey = async (userId) => {
   }
 };
 
+// Admin change user password
+const adminChangeUserPassword = async (adminId, userId, newPassword) => {
+  try {
+    const admin = await User.findById(adminId);
+    if (!admin || !['super_admin', 'admin'].includes(admin.role)) {
+      throw new ApiError(403, 'Not authorized to change user passwords');
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError(404, 'User not found');
+    }
+
+    // Check password strength
+    if (!validatePasswordStrength(newPassword)) {
+      throw new ApiError(400, 'Password does not meet security requirements');
+    }
+
+    // Store current password in history
+    const previousPasswords = user.previousPasswords || [];
+    previousPasswords.push({
+      password: user.password,
+      changedAt: new Date()
+    });
+
+    // Keep only last 5 passwords
+    if (previousPasswords.length > 5) {
+      previousPasswords.shift();
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.passwordLastChanged = new Date();
+    user.previousPasswords = previousPasswords;
+
+    // Log password change
+    user.securityLog.push({
+      action: 'password_change',
+      timestamp: new Date(),
+      status: 'success',
+      details: {
+        changedBy: adminId,
+        changedByRole: admin.role
+      }
+    });
+
+    await user.save();
+    return { message: 'Password updated successfully' };
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Get all user credentials (super admin only)
+const getAllUserCredentials = async (adminId) => {
+  try {
+    const admin = await User.findById(adminId);
+    if (!admin || admin.role !== 'super_admin') {
+      throw new ApiError(403, 'Not authorized to view user credentials');
+    }
+
+    const users = await User.find({}, {
+      username: 1,
+      password: 1,
+      role: 1,
+      email: 1,
+      firstName: 1,
+      lastName: 1,
+      mobileNumber: 1,
+      isActive: 1,
+      passwordLastChanged: 1
+    });
+
+    return users;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Update user profile picture
+const updateProfilePicture = async (userId, filePath) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // If there's an existing profile picture, you might want to delete it
+    if (user.profilePicture) {
+      const oldFilePath = path.join(__dirname, '..', user.profilePicture);
+      try {
+        await fs.unlink(oldFilePath);
+      } catch (error) {
+        console.error('Error deleting old profile picture:', error);
+      }
+    }
+
+    // Update the profile picture path
+    user.profilePicture = filePath;
+    await user.save();
+
+    return user;
+  } catch (error) {
+    console.error('Error in updateProfilePicture:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   userLogin,
   modifyPassword,
@@ -825,5 +940,8 @@ module.exports = {
   getActiveSessions,
   forcePasswordReset,
   lockAccount,
-  unlockAccount
+  unlockAccount,
+  adminChangeUserPassword,
+  getAllUserCredentials,
+  updateProfilePicture
 };

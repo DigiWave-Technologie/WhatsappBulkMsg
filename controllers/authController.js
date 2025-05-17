@@ -60,15 +60,47 @@ const modifyPassword = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
+    console.log('req.body:', req.body); // Log request body
+    console.log('req.file:', req.file); // Log request file
+
     const userData = req.body;
     const creatorId = req.user.userId; // From auth middleware
-    const result = await authService.createUser(userData, creatorId);
+    const profilePicturePath = req.file ? req.file.path : null; // Get file path if uploaded
+
+    // Parse permissions and rolePermissions from JSON strings if they exist
+    if (userData.permissions && typeof userData.permissions === 'string') {
+      try {
+        userData.permissions = JSON.parse(userData.permissions);
+      } catch (e) {
+        throw new SyntaxError('Invalid JSON format for permissions');
+      }
+    }
+    if (userData.rolePermissions && typeof userData.rolePermissions === 'string') {
+      try {
+        userData.rolePermissions = JSON.parse(userData.rolePermissions);
+      } catch (e) {
+        throw new SyntaxError('Invalid JSON format for rolePermissions');
+      }
+    }
+
+    // Pass user data and profile picture path to service
+    const result = await authService.createUser({...userData, profilePicture: profilePicturePath }, creatorId);
+
     res.status(201).json({
       success: true,
       message: 'User created successfully',
       data: result
     });
   } catch (error) {
+    // If JSON parsing fails, send a 400 response
+    if (error instanceof SyntaxError) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+        error: error
+      });
+    }
+    console.error('Error creating user:', error);
     res.status(400).json({
       success: false,
       message: error.message
@@ -317,6 +349,75 @@ const revokeApiKey = async (req, res) => {
   }
 };
 
+const adminChangeUserPassword = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+    const adminId = req.user.userId;
+
+    const result = await authService.adminChangeUserPassword(adminId, userId, newPassword);
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+const getAllUserCredentials = async (req, res) => {
+  try {
+    const adminId = req.user.userId;
+    const users = await authService.getAllUserCredentials(adminId);
+    res.status(200).json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Update user profile picture
+const updateProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Create the file path relative to the uploads directory
+    const filePath = `/uploads/profile-pictures/${req.file.filename}`;
+    
+    const user = await authService.updateProfilePicture(userId, filePath);
+
+    res.json({
+      success: true,
+      message: 'Profile picture updated successfully',
+      data: {
+        profilePicture: user.profilePicture
+      }
+    });
+  } catch (error) {
+    console.error('Error updating profile picture:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile picture',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   userLogin,
   modifyPassword,
@@ -334,5 +435,8 @@ module.exports = {
   unlockAccount,
   lockAccount,
   generateApiKey,
-  revokeApiKey
+  revokeApiKey,
+  adminChangeUserPassword,
+  getAllUserCredentials,
+  updateProfilePicture
 };

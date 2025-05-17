@@ -1,21 +1,35 @@
 const express = require("express");
 const router = express.Router();
 const campaignController = require("../controllers/campaignController");
-// Assuming multer setup is needed for potential future file uploads in campaign creation/updates,
-// but removing the specific '/sendCampaign' route as the main POST '/' seems to handle creation.
-// const multer = require("multer");
-const { authenticateToken } = require('../middleware/auth');
-const { checkPermission } = require('../middleware/permissions');
+const { authMiddleware } = require('../middleware/authMiddleware');
+const { validateCampaign } = require('../middleware/validationMiddleware');
+const multer = require('multer');
+const path = require('path');
 
-// Use memoryStorage so files are kept in memory as Buffers.
-// const storage = multer.memoryStorage();
-// const upload = multer({ storage });
+// Configure multer for CSV uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../uploads/csv'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  }
+});
 
 // Apply authentication middleware to all routes below this point
-router.use(authenticateToken);
-
-// Check if user has permission to manage campaigns for routes below this point
-router.use(checkPermission('manage_campaigns'));
+router.use(authMiddleware);
 
 // --- Standard CRUD Routes ---
 
@@ -26,18 +40,10 @@ router.get('/', campaignController.getCampaigns);
 router.get('/:id', campaignController.getCampaignById);
 
 // Create a new campaign
-// Assuming 'validateCampaign' middleware exists in campaignController
-router.post('/',
-    // campaignController.validateCampaign, // Uncomment if validation middleware exists
-    campaignController.createCampaign
-);
+router.post('/', validateCampaign, campaignController.createCampaign);
 
 // Update an existing campaign
-// Assuming 'validateCampaign' middleware exists in campaignController
-router.put('/:id',
-    // campaignController.validateCampaign, // Uncomment if validation middleware exists
-    campaignController.updateCampaign
-);
+router.put('/:id', validateCampaign, campaignController.updateCampaign);
 
 // Delete a campaign
 router.delete('/:id', campaignController.deleteCampaign);
@@ -47,14 +53,20 @@ router.delete('/:id', campaignController.deleteCampaign);
 // Start a campaign
 router.post('/:id/start', campaignController.startCampaign);
 
+// Schedule a campaign
+router.post('/:id/schedule', campaignController.scheduleCampaign);
+
 // Pause a running campaign
 router.post('/:id/pause', campaignController.pauseCampaign);
 
 // Resume a paused campaign
 router.post('/:id/resume', campaignController.resumeCampaign);
 
-// Cancel a campaign (maps to stop/cancel)
-router.post('/:id/cancel', campaignController.cancelCampaign); // Renamed from '/stop' for consistency
+// Cancel a campaign
+router.post('/:id/cancel', campaignController.cancelCampaign);
+
+// Rerun a campaign
+router.post('/:id/rerun', campaignController.rerunCampaign);
 
 // --- Campaign Analytics & Reporting ---
 
@@ -66,5 +78,8 @@ router.get('/:id/reports', campaignController.getCampaignDeliveryReports);
 
 // Get status for a specific recipient within a campaign
 router.get('/:id/recipients/:phone', campaignController.getRecipientStatus);
+
+// CSV upload for campaign recipients
+router.post('/upload-csv', upload.single('csv'), campaignController.uploadCSV);
 
 module.exports = router;
