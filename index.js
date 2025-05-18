@@ -13,8 +13,6 @@ const app = express();
 const PORT = process.env.PORT || 3000; // Changed to 3000 to match your request
 
 // Middleware
-// Removed global body parsing middleware to avoid interfering with Multer
-// app.use(express.json());
 app.use(
   cors({
     origin: "*",
@@ -24,9 +22,10 @@ app.use(
     optionsSuccessStatus: 204,
   })
 );
-// Removed global body parsing middleware
-// app.use(bodyParser.json());
-// app.use(bodyParser.urlencoded({ extended: true }));
+
+// Add body parsers before routes
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Import existing routes
 const authRoutes = require("./routes/authRoutes");
