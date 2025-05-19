@@ -1,10 +1,10 @@
 require('dotenv').config();
 
 module.exports = {
-    apiUrl: process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v17.0',
-    apiKey: process.env.WHATSAPP_API_KEY,
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-    businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
-    webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
-    appSecret: process.env.WHATSAPP_APP_SECRET
+    WHATSAPP_TOKEN: "EAAaWMPrfZA38BOwwhUGN88jF5hQP5b14n9oJCrfCF7xLhtDnNzd7OEfSa2fVvVppzTTnIxDSrSWmUMr3wGSLkTp3cYDm1S9B3Gp1VIUOa6IZASfKZAcGwKjnqDWeGenpV8ldRwZCGddW8PKzWGCZBkSH5BrnZAuyJyaWDTjlZBcine9BNcOvItKnqjohcdymB9eGTkWNWJCjMbRAEJho5i3jDiilwByHwL9hQwgqcPUUgZDZD",
+    WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    WHATSAPP_API_VERSION: 'v17.0',
+    WHATSAPP_API_URL: `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v17.0'}`,
+    WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
+    WHATSAPP_BUSINESS_ACCOUNT_ID: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
 }; 

@@ -42,6 +42,8 @@ const templateRoutes = require('./routes/templateRoutes');
 const apiRoutes = require('./routes/apiRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const whatsappWebhook = require('./webhooks/whatsapp');
+const whatsappRoutes = require('./routes/whatsappRoutes');
 
 // Serve static files from the uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -70,6 +72,8 @@ const startServer = async () => {
     app.use('/api/reports', reportRoutes);
     app.use('/api/categories', categoryRoutes);
     app.use('/api', apiRoutes);
+    app.use('/webhook/whatsapp', whatsappWebhook);
+    app.use('/api/whatsapp', whatsappRoutes);
 
     // Error handling middleware
     app.use(errorHandler);

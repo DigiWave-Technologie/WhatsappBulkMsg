@@ -1,119 +1,114 @@
 const axios = require('axios');
-const config = require('../config/whatsapp');
+const whatsappConfig = require('../config/whatsapp');
 
 class WhatsAppService {
     constructor() {
-        this.baseUrl = config.apiUrl;
-        this.apiKey = config.apiKey;
+        this.token = 'EAAaWMPrfZA38BO8hGZAW5WNbnhNmiEDE5ePZAmpBYIyDziZCkcmZA2Uz1xcNrwumerG5p6f4Y8wWCUnJgtUAGOZCfhZCrOCWNqF3TEjZB15ZAjdTsZA8njj8yxOR0XZAuVkmaslW3ZCUgZBKZBNBhJYep7oCX8CKDgE9peRXJch7gZB2LgrrnwQgC7RLy8aRwIRNayYKOvm0MmS5KXx5ZAZBdx7LRv1zJlqrIhZCihCMqNTKy0Giv1BpwYJvEIOZC8ZD';
+        this.phoneNumberId = '441959912339170';  // Your phone number ID from the curl command
+        this.apiUrl = 'https://graph.facebook.com/v22.0';
     }
 
-    async sendMessage({ to, message, template, media, variables }) {
+    async sendTextMessage(to, message) {
         try {
-            const payload = {
-                messaging_product: 'whatsapp',
-                recipient_type: 'individual',
-                to,
-                type: template ? 'template' : 'text'
-            };
-
-            if (template) {
-                payload.template = {
-                    name: template,
-                    language: {
-                        code: variables?.language || 'en'
-                    },
-                    components: variables?.components || []
-                };
-            } else {
-                payload.text = {
-                    body: message
-                };
-            }
-
-            if (media && media.length > 0) {
-                media.forEach(item => {
-                    if (!payload[item.type]) {
-                        payload[item.type] = {
-                            link: item.url,
-                            caption: item.caption
-                        };
-                    }
-                });
-            }
-
-            const response = await axios.post(`${this.baseUrl}/messages`, payload, {
+            const response = await axios({
+                method: 'POST',
+                url: `${this.apiUrl}/${this.phoneNumberId}/messages`,
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    messaging_product: 'whatsapp',
+                    to: to,
+                    type: 'text',
+                    text: { body: message }
                 }
             });
-
-            return {
-                messageId: response.data.messages[0].id,
-                status: 'sent'
-            };
+            return response.data;
         } catch (error) {
-            throw new Error('Failed to send WhatsApp message: ' + error.message);
+            console.error('Error sending WhatsApp message:', error.response?.data || error.message);
+            throw error;
         }
     }
 
-    async sendTemplate({ to, template, language, components }) {
+    async sendTemplateMessage(to, templateName, languageCode) {
         try {
-            const payload = {
-                messaging_product: 'whatsapp',
-                recipient_type: 'individual',
-                to,
-                type: 'template',
-                template: {
-                    name: template,
-                    language: {
-                        code: language
-                    },
-                    components
-                }
-            };
-
-            const response = await axios.post(`${this.baseUrl}/messages`, payload, {
+            const response = await axios({
+                method: 'POST',
+                url: `${this.apiUrl}/${this.phoneNumberId}/messages`,
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    messaging_product: 'whatsapp',
+                    to: to,
+                    type: 'template',
+                    template: {
+                        name: templateName,
+                        language: {
+                            code: languageCode
+                        }
+                    }
                 }
             });
-
-            return {
-                messageId: response.data.messages[0].id,
-                status: 'sent'
-            };
+            return response.data;
         } catch (error) {
-            throw new Error('Failed to send WhatsApp template: ' + error.message);
+            console.error('Error sending WhatsApp template message:', error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    async sendMediaMessage(to, mediaType, mediaUrl, caption = '') {
+        try {
+            const response = await axios({
+                method: 'POST',
+                url: `${this.apiUrl}/${this.phoneNumberId}/messages`,
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    messaging_product: 'whatsapp',
+                    to: to,
+                    type: mediaType,
+                    [mediaType]: {
+                        link: mediaUrl,
+                        caption: caption
+                    }
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error sending WhatsApp media message:', error.response?.data || error.message);
+            throw error;
         }
     }
 
     async getMessageStatus(messageId) {
         try {
-            const response = await axios.get(`${this.baseUrl}/messages/${messageId}`, {
+            const response = await axios({
+                method: 'GET',
+                url: `${this.apiUrl}/${messageId}`,
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`
+                    'Authorization': `Bearer ${this.token}`,
                 }
             });
-
-            return {
-                status: response.data.status,
-                timestamp: response.data.timestamp
-            };
+            return response.data;
         } catch (error) {
-            throw new Error('Failed to get message status: ' + error.message);
+            console.error('Error getting message status:', error.response?.data || error.message);
+            throw error;
         }
     }
 
     async validateNumber(number) {
         try {
-            const response = await axios.post(`${this.baseUrl}/contacts`, {
+            const response = await axios.post(`${this.apiUrl}/contacts`, {
                 blocking: 'wait',
                 contacts: [number]
             }, {
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Authorization': `Bearer ${this.token}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -129,9 +124,9 @@ class WhatsAppService {
 
     async getBusinessProfile() {
         try {
-            const response = await axios.get(`${this.baseUrl}/business/profile`, {
+            const response = await axios.get(`${this.apiUrl}/business/profile`, {
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`
+                    'Authorization': `Bearer ${this.token}`
                 }
             });
 
@@ -143,9 +138,9 @@ class WhatsAppService {
 
     async updateBusinessProfile(data) {
         try {
-            const response = await axios.patch(`${this.baseUrl}/business/profile`, data, {
+            const response = await axios.patch(`${this.apiUrl}/business/profile`, data, {
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Authorization': `Bearer ${this.token}`,
                     'Content-Type': 'application/json'
                 }
             });
