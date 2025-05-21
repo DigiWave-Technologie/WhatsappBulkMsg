@@ -13,7 +13,7 @@ const templateSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: ['quick', 'csv', 'button', 'dp', 'poll', 'group', 'channel'],
-        required: true
+        required: false
     },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -36,12 +36,17 @@ const templateSchema = new mongoose.Schema({
             defaultValue: String
         }]
     },
-    media: {
-        type: {
-            type: String,
-            enum: ['image', 'video', 'document', 'audio', 'sticker', 'location', 'dp', 'none'],
-            default: 'none'
-        },
+    images: [{
+        url: String,
+        caption: String,
+        filename: String
+    }],
+    video: {
+        url: String,
+        caption: String,
+        filename: String
+    },
+    pdf: {
         url: String,
         caption: String,
         filename: String
@@ -72,7 +77,7 @@ const templateSchema = new mongoose.Schema({
     },
     category: {
         type: String,
-        required: true
+        required: false
     },
     tags: [String],
     isPublic: {
@@ -178,16 +183,16 @@ templateSchema.methods.toMetaApiFormat = function() {
     };
 
     // Add header if media exists
-    if (this.media && this.media.type !== 'none') {
+    if (this.images && this.images.length > 0) {
         const headerComponent = {
             type: 'HEADER',
-            format: this.media.type.toUpperCase()
+            format: 'IMAGE'
         };
         
         // Add example URLs for media
-        if (this.media.url) {
+        if (this.images[0].url) {
             headerComponent.example = {
-                header_handle: [this.media.url]
+                header_handle: [this.images[0].url]
             };
         }
         

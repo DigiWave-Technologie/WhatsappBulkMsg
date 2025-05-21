@@ -7,20 +7,47 @@ const createTemplate = asyncHandler(async (req, res) => {
     const templateData = req.body;
     const userId = req.user.userId;
 
-    // Validate template data
-    const template = new Template(templateData);
-    const validationErrors = template.validateComponents();
-    
-    if (validationErrors.length > 0) {
+    // Handle uploaded files
+    if (req.files) {
+        // Images
+        if (req.files.images) {
+            templateData.images = req.files.images.map((file, idx) => ({
+                url: `/uploads/template-media/${file.filename}`,
+                filename: file.originalname,
+                caption: req.body[`caption_image_${idx}`] || ''
+            }));
+        }
+        // Video
+        if (req.files.video && req.files.video[0]) {
+            templateData.video = {
+                url: `/uploads/template-media/${req.files.video[0].filename}`,
+                filename: req.files.video[0].originalname,
+                caption: req.body.caption_video || ''
+            };
+        }
+        // PDF
+        if (req.files.pdf && req.files.pdf[0]) {
+            templateData.pdf = {
+                url: `/uploads/template-media/${req.files.pdf[0].filename}`,
+                filename: req.files.pdf[0].originalname,
+                caption: req.body.caption_pdf || ''
+            };
+        }
+    }
+
+    // Simple validation
+    const errors = [];
+    if (!templateData.name) errors.push('Template name is required');
+    if (!templateData.message || !templateData.message.text) errors.push('Template message is required');
+    if (errors.length > 0) {
         return res.status(400).json({
             success: false,
             message: 'Template validation failed',
-            errors: validationErrors
+            errors
         });
     }
 
     const createdTemplate = await templateService.createTemplate(userId, templateData);
-
     res.status(201).json({
         success: true,
         message: 'Template created successfully',
@@ -34,20 +61,47 @@ const updateTemplate = asyncHandler(async (req, res) => {
     const templateData = req.body;
     const userId = req.user.userId;
 
-    // Validate template data
-    const template = new Template(templateData);
-    const validationErrors = template.validateComponents();
-    
-    if (validationErrors.length > 0) {
+    // Handle uploaded files
+    if (req.files) {
+        // Images
+        if (req.files.images) {
+            templateData.images = req.files.images.map((file, idx) => ({
+                url: `/uploads/template-media/${file.filename}`,
+                filename: file.originalname,
+                caption: req.body[`caption_image_${idx}`] || ''
+            }));
+        }
+        // Video
+        if (req.files.video && req.files.video[0]) {
+            templateData.video = {
+                url: `/uploads/template-media/${req.files.video[0].filename}`,
+                filename: req.files.video[0].originalname,
+                caption: req.body.caption_video || ''
+            };
+        }
+        // PDF
+        if (req.files.pdf && req.files.pdf[0]) {
+            templateData.pdf = {
+                url: `/uploads/template-media/${req.files.pdf[0].filename}`,
+                filename: req.files.pdf[0].originalname,
+                caption: req.body.caption_pdf || ''
+            };
+        }
+    }
+
+    // Simple validation
+    const errors = [];
+    if (!templateData.name) errors.push('Template name is required');
+    if (!templateData.message || !templateData.message.text) errors.push('Template message is required');
+    if (errors.length > 0) {
         return res.status(400).json({
             success: false,
             message: 'Template validation failed',
-            errors: validationErrors
+            errors
         });
     }
 
     const updatedTemplate = await templateService.updateTemplate(templateId, userId, templateData);
-
     res.status(200).json({
         success: true,
         message: 'Template updated successfully',
