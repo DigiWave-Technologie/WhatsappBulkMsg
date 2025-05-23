@@ -43,7 +43,7 @@ const apiRoutes = require('./routes/apiRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const whatsappWebhook = require('./webhooks/whatsapp');
-const whatsappRoutes = require('./routes/whatsappRoutes');
+const whatsappRoutes = require('./routes/whatsapp');
 
 // Serve static files from the uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

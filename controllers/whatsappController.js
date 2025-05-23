@@ -1,120 +1,156 @@
 const whatsappService = require('../services/whatsappService');
-const { asyncHandler } = require('../middleware/errorHandler');
-const { validatePhoneNumber } = require('../utils/helpers');
+const WhatsAppConfig = require('../models/WhatsAppConfig');
+const { validateObjectId, validatePhoneNumber } = require('../utils/validators');
 
-// Send a WhatsApp message
-const sendMessage = asyncHandler(async (req, res) => {
-    const { to, message, media } = req.body;
+module.exports.configureWhatsApp = async (req, res) => {
+    try {
+        const { whatsappBusinessAccountId, phoneNumberId, accessToken } = req.body;
+        const userId = req.user.userId;
 
-    if (!to || !message) {
-        return res.status(400).json({
+        // Validate required fields
+        if (!whatsappBusinessAccountId || !phoneNumberId || !accessToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        // Check if configuration already exists
+        let config = await WhatsAppConfig.findOne({ userId });
+        
+        if (config) {
+            // Update existing configuration
+            config.whatsappBusinessAccountId = whatsappBusinessAccountId;
+            config.phoneNumberId = phoneNumberId;
+            config.accessToken = accessToken;
+            await config.save();
+        } else {
+            // Create new configuration
+            config = await WhatsAppConfig.create({
+                userId,
+                whatsappBusinessAccountId,
+                phoneNumberId,
+                accessToken
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'WhatsApp configuration saved successfully',
+            data: config
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            message: 'Recipient number and message are required'
+            message: 'Error configuring WhatsApp',
+            error: error.message
         });
     }
+};
 
-    const result = await whatsappService.sendMessage(to, message, media);
+module.exports.getWhatsAppConfig = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const config = await WhatsAppConfig.findOne({ userId });
 
-    res.status(200).json({
-        success: true,
-        message: 'Message sent successfully',
-        data: result
-    });
-});
+        if (!config) {
+            return res.status(404).json({
+                success: false,
+                message: 'WhatsApp configuration not found'
+            });
+        }
 
-// Send a template message
-const sendTemplate = asyncHandler(async (req, res) => {
-    const { to, templateName, language, components } = req.body;
-
-    if (!to || !templateName || !language) {
-        return res.status(400).json({
+        res.status(200).json({
+            success: true,
+            data: config
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            message: 'Recipient number, template name, and language are required'
+            message: 'Error fetching WhatsApp configuration',
+            error: error.message
         });
     }
+};
 
-    const result = await whatsappService.sendTemplate(to, templateName, language, components);
+module.exports.sendMessage = async (req, res) => {
+    try {
+        const { to, templateName, languageCode, components } = req.body;
+        const userId = req.user.userId;
 
-    res.status(200).json({
-        success: true,
-        message: 'Template message sent successfully',
-        data: result
-    });
-});
+        // Validate required fields
+        if (!to || !templateName || !languageCode) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
 
-// Get message status
-const getMessageStatus = asyncHandler(async (req, res) => {
-    const { messageId } = req.params;
+        // Validate phone number
+        if (!validatePhoneNumber(to)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
 
-    if (!messageId) {
-        return res.status(400).json({
+        const result = await whatsappService.sendMessage(
+            userId,
+            to,
+            templateName,
+            languageCode,
+            components
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Message sent successfully',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            message: 'Message ID is required'
+            message: 'Error sending message',
+            error: error.message
         });
     }
+};
 
-    const result = await whatsappService.getMessageStatus(messageId);
+module.exports.getTemplates = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const templates = await whatsappService.getTemplates(userId);
 
-    res.status(200).json({
-        success: true,
-        data: result
-    });
-});
-
-// Validate a WhatsApp number
-const validateNumber = asyncHandler(async (req, res) => {
-    const { phoneNumber } = req.params;
-
-    if (!phoneNumber) {
-        return res.status(400).json({
+        res.status(200).json({
+            success: true,
+            data: templates
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            message: 'Phone number is required'
+            message: 'Error fetching templates',
+            error: error.message
         });
     }
+};
 
-    const result = await whatsappService.validateNumber(phoneNumber);
+module.exports.createTemplate = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const templateData = req.body;
 
-    res.status(200).json({
-        success: true,
-        data: result
-    });
-});
+        const result = await whatsappService.createTemplate(userId, templateData);
 
-// Get business profile
-const getBusinessProfile = asyncHandler(async (req, res) => {
-    const result = await whatsappService.getBusinessProfile();
-
-    res.status(200).json({
-        success: true,
-        data: result
-    });
-});
-
-// Update business profile
-const updateBusinessProfile = asyncHandler(async (req, res) => {
-    const profile = req.body;
-
-    if (!profile) {
-        return res.status(400).json({
+        res.status(200).json({
+            success: true,
+            message: 'Template created successfully',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            message: 'Profile data is required'
+            message: 'Error creating template',
+            error: error.message
         });
     }
-
-    const result = await whatsappService.updateBusinessProfile(profile);
-
-    res.status(200).json({
-        success: true,
-        message: 'Business profile updated successfully',
-        data: result
-    });
-});
-
-module.exports = {
-    sendMessage,
-    sendTemplate,
-    getMessageStatus,
-    validateNumber,
-    getBusinessProfile,
-    updateBusinessProfile
 }; 
