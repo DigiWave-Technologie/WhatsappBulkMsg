@@ -15,7 +15,7 @@ const { processSpintax } = require('../utils/helpers'); // <-- Import the new he
 const csv = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
-const { validatePhoneNumber } = require('../middleware/validateRequest');
+const { validatePhoneNumber } = require('../utils/helpers');
 
 class CampaignService {
     // Create a new campaign
@@ -97,7 +97,7 @@ class CampaignService {
 
     // Validate phone numbers
     validatePhoneNumbers(numbers) {
-        const invalidNumbers = numbers.filter(number => !this.validatePhoneNumber(number));
+        const invalidNumbers = numbers.filter(number => !validatePhoneNumber(number));
         if (invalidNumbers.length > 0) {
             throw new ApiError(400, `Invalid phone numbers found: ${invalidNumbers.join(', ')}`);
         }
@@ -567,6 +567,20 @@ class CampaignService {
             error: messageLog.error,
             timestamp: messageLog.createdAt
         };
+    }
+
+    // Get all campaigns with optional filters and pagination
+    async getCampaigns(userId, filters = {}, page = 1, limit = 10) {
+        const query = { userId };
+        if (filters.status) query.status = filters.status;
+        if (filters.type) query.type = filters.type;
+        if (filters.startDate && filters.endDate) {
+            query.createdAt = { $gte: new Date(filters.startDate), $lte: new Date(filters.endDate) };
+        }
+        return await Campaign.find(query)
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .sort({ createdAt: -1 });
     }
 }
 

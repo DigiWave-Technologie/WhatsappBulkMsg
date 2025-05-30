@@ -10,7 +10,8 @@ const rolePermissions = {
         'manage_campaigns',
         'view_analytics',
         'manage_api_keys',
-        'manage_settings'
+        'manage_settings',
+        'manage_pricing_plans'
     ],
     admin: [
         'manage_users',
