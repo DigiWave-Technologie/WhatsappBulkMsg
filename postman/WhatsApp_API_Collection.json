@@ -37,7 +37,7 @@
 			"name": "WhatsApp Configuration",
 			"item": [
 				{
-					"name": "Configure WhatsApp",
+					"name": "Create Configuration",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -59,11 +59,11 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "whatsapp", "configure"]
 						},
-						"description": "Configure WhatsApp settings"
+						"description": "Create new WhatsApp configuration using environment variables."
 					}
 				},
 				{
-					"name": "Get WhatsApp Config",
+					"name": "Get Configuration",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -77,7 +77,69 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "whatsapp", "config"]
 						},
-						"description": "Get current WhatsApp configuration"
+						"description": "Get current WhatsApp configuration."
+					}
+				},
+				{
+					"name": "List All Configurations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/whatsapp/configs",
+							"host": ["{{base_url}}"],
+							"path": ["api", "whatsapp", "configs"]
+						},
+						"description": "Get all WhatsApp configurations."
+					}
+				},
+				{
+					"name": "Update Configuration",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"whatsappBusinessAccountId\": \"{{whatsapp_business_account_id}}\",\n    \"phoneNumberId\": \"{{phone_number_id}}\",\n    \"accessToken\": \"{{access_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/whatsapp/config",
+							"host": ["{{base_url}}"],
+							"path": ["api", "whatsapp", "config"]
+						},
+						"description": "Update existing WhatsApp configuration using environment variables."
+					}
+				},
+				{
+					"name": "Delete Configuration",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/whatsapp/config",
+							"host": ["{{base_url}}"],
+							"path": ["api", "whatsapp", "config"]
+						},
+						"description": "Delete WhatsApp configuration."
 					}
 				}
 			]

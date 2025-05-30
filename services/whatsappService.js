@@ -26,15 +26,15 @@ class WhatsAppService {
 
             const data = {
                 messaging_product: "whatsapp",
-                to: to,
+                    to: to,
                 type: "template",
-                template: {
-                    name: templateName,
-                    language: {
-                        code: languageCode
+                    template: {
+                        name: templateName,
+                        language: {
+                            code: languageCode
                     },
                     components: components
-                }
+                    }
             };
 
             const response = await axios.post(url, data, { headers });
@@ -103,7 +103,7 @@ class WhatsAppService {
             const url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates`;
             const headers = {
                 'Authorization': `Bearer ${config.accessToken}`,
-                'Content-Type': 'application/json'
+                    'Content-Type': 'application/json'
             };
 
             const response = await axios.post(url, templateData, { headers });

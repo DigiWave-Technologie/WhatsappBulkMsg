@@ -6,14 +6,17 @@ const { authenticateToken } = require('../middleware/auth');
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
 
-// WhatsApp configuration routes
+// WhatsApp Configuration Routes
 router.post('/configure', whatsappController.configureWhatsApp);
 router.get('/config', whatsappController.getWhatsAppConfig);
+router.put('/config', whatsappController.updateWhatsAppConfig);
+router.delete('/config', whatsappController.deleteWhatsAppConfig);
+router.get('/configs', whatsappController.getAllWhatsAppConfigs);
 
-// Message routes
+// WhatsApp Message Routes
 router.post('/send', whatsappController.sendMessage);
 
-// Template routes
+// WhatsApp Template Routes
 router.get('/templates', whatsappController.getTemplates);
 router.post('/templates', whatsappController.createTemplate);
 

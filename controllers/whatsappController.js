@@ -153,4 +153,94 @@ module.exports.createTemplate = async (req, res) => {
             error: error.message
         });
     }
+};
+
+module.exports.updateWhatsAppConfig = async (req, res) => {
+    try {
+        const { whatsappBusinessAccountId, phoneNumberId, accessToken } = req.body;
+        const userId = req.user.userId;
+
+        // Validate required fields
+        if (!whatsappBusinessAccountId || !phoneNumberId || !accessToken) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        // Find and update configuration
+        const config = await WhatsAppConfig.findOne({ userId });
+        
+        if (!config) {
+            return res.status(404).json({
+                success: false,
+                message: 'WhatsApp configuration not found'
+            });
+        }
+
+        // Update fields
+        config.whatsappBusinessAccountId = whatsappBusinessAccountId;
+        config.phoneNumberId = phoneNumberId;
+        config.accessToken = accessToken;
+        await config.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'WhatsApp configuration updated successfully',
+            data: config
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error updating WhatsApp configuration',
+            error: error.message
+        });
+    }
+};
+
+module.exports.deleteWhatsAppConfig = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        // Find and delete configuration
+        const config = await WhatsAppConfig.findOneAndDelete({ userId });
+        
+        if (!config) {
+            return res.status(404).json({
+                success: false,
+                message: 'WhatsApp configuration not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'WhatsApp configuration deleted successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting WhatsApp configuration',
+            error: error.message
+        });
+    }
+};
+
+module.exports.getAllWhatsAppConfigs = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        
+        // Get all configurations for the user
+        const configs = await WhatsAppConfig.find({ userId });
+
+        res.status(200).json({
+            success: true,
+            data: configs
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching WhatsApp configurations',
+            error: error.message
+        });
+    }
 }; 
