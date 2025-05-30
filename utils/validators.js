@@ -15,8 +15,9 @@ const validateObjectId = (id) => {
  * @returns {boolean} - True if valid phone number, false otherwise
  */
 const validatePhoneNumber = (phoneNumber) => {
-    // Basic phone number validation - can be enhanced based on your needs
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    // Basic phone number validation
+    // Allows formats like: +1234567890, 1234567890, (123) 456-7890
+    const phoneRegex = /^(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}$/;
     return phoneRegex.test(phoneNumber);
 };
 

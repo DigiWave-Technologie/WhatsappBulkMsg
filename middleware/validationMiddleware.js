@@ -1,5 +1,6 @@
 const { body, validationResult } = require('express-validator');
 const { ApiError } = require('./errorHandler');
+const { validatePhoneNumber } = require('../utils/validators');
 
 // Validation middleware
 const validate = (req, res, next) => {

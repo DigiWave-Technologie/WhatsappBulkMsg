@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Import existing routes
 const authRoutes = require("./routes/authRoutes");
-const CreditsRoutes = require("./routes/creditsRoutes");
+const creditsRoutes = require("./routes/creditsRoutes");
 const msgTemplateRoutes = require("./routes/msgTemplateRoutes");
 const msgGroupRoutes = require("./routes/msgGroupRoutes");
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -59,24 +59,22 @@ const startServer = async () => {
 
     // Mount routes after MongoDB connection
     app.use("/api/auth", authRoutes);
-    app.use("/api/credits", CreditsRoutes);
-    app.use("/api/credittype", credittypeRouter);
-    app.use("/api/msggroup", msgGroupRoutes);
-    app.use("/api/msgtemplate", msgTemplateRoutes);
-    app.use("/api/msggroup", msgGroupRoutes);
+    app.use("/api/credits", creditsRoutes);
+    app.use("/api/templates", msgTemplateRoutes);
+    app.use("/api/groups", msgGroupRoutes);
     app.use("/api/campaigns", campaignRoutes);
-    app.use("/api/Internationalcampaign", InternaitionaCampaignRoutes);
-    app.use("/api/PersonalCampaign", PersonalCampaignRoutes);
-    app.use("/api/InternationalPersonalCampaign", InternaitionapersonalCampaignRoutes);
-    app.use("/api/uploadExcel", uploadExcelRoutes);
-    app.use('/api/templates', templateRoutes);
-    app.use('/api/reports', reportRoutes);
-    app.use('/api/categories', categoryRoutes);
-    app.use('/api', apiRoutes);
-    app.use('/webhook/whatsapp', whatsappWebhook);
-    app.use('/api/whatsapp', whatsappRoutes);
-    app.use('/api/campaign-credits', campaignCreditRoutes);
-    app.use('/api/campaign-costs', campaignTypeCostRoutes);
+    app.use("/api/international-campaigns", InternaitionaCampaignRoutes);
+    app.use("/api/personal-campaigns", PersonalCampaignRoutes);
+    app.use("/api/international-personal-campaigns", InternaitionapersonalCampaignRoutes);
+    app.use("/api/upload", uploadExcelRoutes);
+    app.use("/api/credit-types", credittypeRouter);
+    app.use("/api/templates", templateRoutes);
+    app.use("/api/v1", apiRoutes);
+    app.use("/api/reports", reportRoutes);
+    app.use("/api/categories", categoryRoutes);
+    app.use("/api/whatsapp", whatsappRoutes);
+    app.use("/api/campaign-credits", campaignCreditRoutes);
+    app.use("/api/campaign-costs", campaignTypeCostRoutes);
 
     // Error handling middleware
     app.use(errorHandler);

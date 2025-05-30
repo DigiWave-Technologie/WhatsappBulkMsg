@@ -22,6 +22,7 @@ const setDefaultUserProfile = async (numbers, instance) => {
 // Create campaign
 const createCampaign = async (req, res) => {
   try {
+    console.log('DEBUG: Received campaignData:', JSON.stringify(req.body, null, 2));
     const campaignData = req.body;
     const userId = req.user.userId;
     const campaign = await campaignService.createCampaign(campaignData, userId);
