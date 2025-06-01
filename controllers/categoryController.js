@@ -3,6 +3,12 @@ const Category = require('../models/Category');
 // Create a new category
 exports.createCategory = async (req, res) => {
   try {
+    if (!req.user || (req.user.role !== 'super_admin' && (req.user.role !== 'admin' || !req.user.hasCategoryPermission))) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: Only super_admin or admin with permission can create categories.'
+      });
+    }
     const { name, description, creditCost } = req.body;
     
     const category = new Category({
@@ -72,6 +78,12 @@ exports.getCategoryById = async (req, res) => {
 // Update a category
 exports.updateCategory = async (req, res) => {
   try {
+    if (!req.user || (req.user.role !== 'super_admin' && (req.user.role !== 'admin' || !req.user.hasCategoryPermission))) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: Only super_admin or admin with permission can update categories.'
+      });
+    }
     const { name, description, creditCost, isActive } = req.body;
     
     const category = await Category.findByIdAndUpdate(
@@ -108,6 +120,12 @@ exports.updateCategory = async (req, res) => {
 // Delete a category
 exports.deleteCategory = async (req, res) => {
   try {
+    if (!req.user || (req.user.role !== 'super_admin' && (req.user.role !== 'admin' || !req.user.hasCategoryPermission))) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: Only super_admin or admin with permission can delete categories.'
+      });
+    }
     const category = await Category.findByIdAndDelete(req.params.id);
     
     if (!category) {

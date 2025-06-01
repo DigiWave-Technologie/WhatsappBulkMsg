@@ -13,7 +13,8 @@ const creditSchema = new mongoose.Schema({
   },
   credit: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   isUnlimited: {
     type: Boolean,

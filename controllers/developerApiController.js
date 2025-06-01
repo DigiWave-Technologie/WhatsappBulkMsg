@@ -1,6 +1,6 @@
 const asyncHandler = require('../utils/asyncHandler');
 const MessageLog = require('../models/MessageLog');
-const CreditTransaction = require('../models/CreditTransaction');
+const { CreditTransaction } = require('../models/Credit');
 
 // Get credit history
 const getCreditHistory = asyncHandler(async (req, res) => {

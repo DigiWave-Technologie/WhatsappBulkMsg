@@ -66,7 +66,7 @@ const testUsers = [
     email: 'admin1@test.com',
     password: 'AdminUser@123',
     role: 'admin',
-    requirePasswordChange: true,
+    requirePasswordChange: false,
     rolePermissions: {
       canCreateUsers: true,
       canUpdateUsers: true,
@@ -91,7 +91,7 @@ const testUsers = [
     email: 'admin2@test.com',
     password: 'AdminUser@123',
     role: 'admin',
-    requirePasswordChange: true,
+    requirePasswordChange: false,
     rolePermissions: {
       canCreateUsers: true,
       canUpdateUsers: true,
@@ -117,7 +117,7 @@ const testUsers = [
     email: 'reseller1@test.com',
     password: 'Reseller@123',
     role: 'reseller',
-    requirePasswordChange: true,
+    requirePasswordChange: false,
     rolePermissions: {
       canCreateUsers: true,
       canUpdateUsers: true,
@@ -137,7 +137,7 @@ const testUsers = [
     email: 'reseller2@test.com',
     password: 'Reseller@123',
     role: 'reseller',
-    requirePasswordChange: true,
+    requirePasswordChange: false,
     rolePermissions: {
       canCreateUsers: true,
       canUpdateUsers: true,
@@ -158,7 +158,7 @@ const testUsers = [
     email: 'user1@test.com',
     password: 'TestUser@123',
     role: 'user',
-    requirePasswordChange: true,
+    requirePasswordChange: false,
     rolePermissions: {
       canViewAnalytics: true,
       canManageAllCampaigns: true,
@@ -172,7 +172,7 @@ const testUsers = [
     email: 'user2@test.com',
     password: 'TestUser@123',
     role: 'user',
-    requirePasswordChange: true,
+    requirePasswordChange: false,
     rolePermissions: {
       canViewAnalytics: true,
       canManageAllCampaigns: true,

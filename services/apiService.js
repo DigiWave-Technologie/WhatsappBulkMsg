@@ -1,7 +1,7 @@
 const Campaign = require('../models/Campaign');
 const MessageLog = require('../models/MessageLog');
 const User = require('../models/User');
-const CreditTransaction = require('../models/CreditTransaction');
+const { CreditTransaction } = require('../models/Credit');
 const Template = require('../models/Template');
 const Group = require('../models/Group');
 const creditService = require('./creditsService');
