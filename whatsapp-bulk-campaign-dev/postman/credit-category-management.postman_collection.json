@@ -1,0 +1,584 @@
+{
+  "info": {
+    "_postman_id": "credit-category-management-collection",
+    "name": "Credit and Category Management",
+    "description": "Collection for Credit and Category Management APIs covering all tested features.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login - Super Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"superadmin1\",\n  \"password\": \"SuperAdmin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data.token) {",
+                  "    pm.environment.set('token', jsonData.data.token);",
+                  "    pm.environment.set('user_id', jsonData.data.user.id || jsonData.data.user._id);",
+                  "    pm.environment.set('user_role', jsonData.data.user.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data.token) {",
+                  "    pm.environment.set('admin_token', jsonData.data.token);",
+                  "    pm.environment.set('admin_id', jsonData.data.user._id);",
+                  "    pm.environment.set('admin_role', jsonData.data.user.role);",
+                  "    console.log('Admin token and details set successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin1\",\n    \"password\": \"Admin@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Reseller",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data.token) {",
+                  "    pm.environment.set('reseller_token', jsonData.data.token);",
+                  "    pm.environment.set('reseller_id', jsonData.data.user._id);",
+                  "    pm.environment.set('reseller_role', jsonData.data.user.role);",
+                  "    console.log('Reseller token and details set successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"reseller1\",\n    \"password\": \"Reseller@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data.token) {",
+                  "    pm.environment.set('user_token', jsonData.data.token);",
+                  "    pm.environment.set('user_id', jsonData.data.user._id);",
+                  "    pm.environment.set('user_role', jsonData.data.user.role);",
+                  "    console.log('User token and details set successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser\",\n    \"password\": \"Test@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Category Management",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"TestCategory\",\n  \"description\": \"Test Description\",\n  \"creditCost\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["categories", "{{category_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"UpdatedCategory\",\n  \"description\": \"Updated Description\",\n  \"creditCost\": 20,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", "{{category_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories", "{{category_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management - Super Admin",
+      "item": [
+        {
+          "name": "Transfer Credits to Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"toUserId\": \"{{admin_id}}\",\n    \"categoryId\": \"{{category_id}}\",\n    \"creditAmount\": 1000,\n    \"description\": \"Initial credit allocation for admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/credits/transfer",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "Get System-wide Credit Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/stats",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get All Credit Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/transactions",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "transactions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management - Admin",
+      "item": [
+        {
+          "name": "Transfer Credits to Reseller",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"toUserId\": \"{{reseller_id}}\",\n    \"categoryId\": \"{{category_id}}\",\n    \"creditAmount\": 500,\n    \"description\": \"Credit allocation for reseller\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/credits/transfer",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "Get Reseller Credit Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/stats?userId={{reseller_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "stats"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{reseller_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management - Reseller",
+      "item": [
+        {
+          "name": "Transfer Credits to User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{reseller_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"toUserId\": \"{{user_id}}\",\n    \"categoryId\": \"{{category_id}}\",\n    \"creditAmount\": 100,\n    \"description\": \"Credit allocation for user\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/credits/transfer",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "Get User Credit Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{reseller_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/stats?userId={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "stats"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{user_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management - User",
+      "item": [
+        {
+          "name": "Check Credit Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/balance/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "balance", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Credit Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/transactions/user/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "transactions", "user", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Category Credits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/transactions/user/{{user_id}}/category/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "transactions", "user", "{{user_id}}", "category", "{{category_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management - Common",
+      "item": [
+        {
+          "name": "Get Credit Usage Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/stats",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Check User Credits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/credits/check/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["credits", "check", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management",
+      "item": [
+        {
+          "name": "Transfer Credits",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{to_user_id}}\",\n  \"categoryId\": \"{{category_id}}\",\n  \"creditAmount\": 100,\n  \"description\": \"Test transfer from superadmin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/credits/transfer",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "Get User Credit Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/credits/user/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "user", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Credit Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/credits/transactions/user/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "transactions", "user", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 

@@ -1,0 +1,448 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890",
+		"name": "User Management API",
+		"description": "Collection for testing user management APIs with different roles (Super Admin, Admin, Reseller)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login - Super Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    pm.environment.set('superadmin_token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{superadmin_username}}\",\n    \"password\": \"{{superadmin_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Super Admin to get JWT token"
+					}
+				},
+				{
+					"name": "Login - Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    pm.environment.set('admin_token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{admin_username}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Admin to get JWT token"
+					}
+				},
+				{
+					"name": "Login - Reseller",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success) {",
+									"    pm.environment.set('reseller_token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{reseller_username}}\",\n    \"password\": \"{{reseller_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as Reseller to get JWT token"
+					}
+				}
+			]
+		},
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Get All Users (Super Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						},
+						"description": "Get all users (Super Admin can see all users)"
+					}
+				},
+				{
+					"name": "Get All Users (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						},
+						"description": "Get users (Admin can see users if they have canViewAllUsers permission)"
+					}
+				},
+				{
+					"name": "Get All Users (Reseller)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{reseller_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						},
+						"description": "Get users (Reseller can only see users they created)"
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"updated_username\",\n    \"email\": \"updated@example.com\",\n    \"firstName\": \"Updated\",\n    \"lastName\": \"User\",\n    \"role\": \"user\",\n    \"permissions\": {\n        \"virtual\": true,\n        \"personal\": true,\n        \"internationalPersonal\": false,\n        \"internationalVirtual\": false\n    },\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/update-user/{{test_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "update-user", "{{test_user_id}}"]
+						},
+						"description": "Update user details"
+					}
+				},
+				{
+					"name": "Change User Password (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"newPassword\": \"NewPassword@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/admin/change-user-password/{{test_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "admin", "change-user-password", "{{test_user_id}}"]
+						},
+						"description": "Change user password (Admin only)"
+					}
+				},
+				{
+					"name": "Lock User Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/lock-account/{{test_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "lock-account", "{{test_user_id}}"]
+						},
+						"description": "Lock a user account"
+					}
+				},
+				{
+					"name": "Unlock User Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/unlock-account/{{test_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "unlock-account", "{{test_user_id}}"]
+						},
+						"description": "Unlock a user account"
+					}
+				},
+				{
+					"name": "Force Password Reset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/force-password-reset/{{test_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "force-password-reset", "{{test_user_id}}"]
+						},
+						"description": "Force a user to reset their password"
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/delete-user/{{test_user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "delete-user", "{{test_user_id}}"]
+						},
+						"description": "Delete a user"
+					}
+				},
+				{
+					"name": "Get User Credentials (Super Admin Only)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/admin/user-credentials",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "admin", "user-credentials"]
+						},
+						"description": "Get all user credentials (Super Admin only)"
+					}
+				},
+				{
+					"name": "Upload Profile Picture",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "profilePicture",
+									"type": "file",
+									"src": "/path/to/your/image.jpg",
+									"description": "Profile picture file (jpg, png, gif)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/profile-picture",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "profile-picture"]
+						},
+						"description": "Upload or update user profile picture"
+					}
+				},
+				{
+					"name": "Create User with Profile Picture",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "newuser",
+									"type": "text",
+									"description": "Username for the new user"
+								},
+								{
+									"key": "password",
+									"value": "NewUser@123",
+									"type": "text",
+									"description": "Password for the new user"
+								},
+								{
+									"key": "email",
+									"value": "newuser@example.com",
+									"type": "text",
+									"description": "Email address"
+								},
+								{
+									"key": "firstName",
+									"value": "New",
+									"type": "text",
+									"description": "First name"
+								},
+								{
+									"key": "lastName",
+									"value": "User",
+									"type": "text",
+									"description": "Last name"
+								},
+								{
+									"key": "role",
+									"value": "user",
+									"type": "text",
+									"description": "User role (super_admin, admin, reseller, user)"
+								},
+								{
+									"key": "mobileNumber",
+									"value": "1234567890",
+									"type": "text",
+									"description": "Mobile number"
+								},
+								{
+									"key": "permissions",
+									"value": "{\"virtual\": true, \"personal\": true, \"internationalPersonal\": false, \"internationalVirtual\": false}",
+									"type": "text",
+									"description": "User permissions in JSON format"
+								},
+								{
+									"key": "rolePermissions",
+									"value": "{\"canCreateUsers\": false, \"canUpdateUsers\": false, \"canDeleteUsers\": false, \"canViewAllUsers\": false, \"canManageAdmins\": false, \"canManageResellers\": false, \"canManageUsers\": false, \"canViewAnalytics\": true, \"canManageSettings\": false, \"canManagePricingPlans\": false, \"canViewSystemStats\": false, \"canManageAllCampaigns\": true, \"canManageAllReports\": true, \"canManageAllGroups\": true, \"canManageAllTemplates\": true}",
+									"type": "text",
+									"description": "Role permissions in JSON format"
+								},
+								{
+									"key": "profilePicture",
+									"type": "file",
+									"src": "/path/to/your/image.jpg",
+									"description": "Profile picture file (jpg, png, gif)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/createUser",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "createUser"]
+						},
+						"description": "Create a new user with profile picture"
+					}
+				}
+			]
+		}
+	]
+} 
