@@ -568,6 +568,50 @@ class CampaignService {
             timestamp: messageLog.createdAt
         };
     }
+
+    // Schedule a campaign
+    async scheduleCampaign(campaignId, scheduledTime) {
+        const campaign = await Campaign.findById(campaignId);
+        if (!campaign) {
+            throw new ApiError(404, 'Campaign not found');
+        }
+
+        campaign.scheduledTime = scheduledTime;
+        campaign.status = 'scheduled';
+        await campaign.save();
+
+        return campaign;
+    }
+
+    // Rerun a campaign
+    async rerunCampaign(campaignId) {
+        const originalCampaign = await Campaign.findById(campaignId);
+        if (!originalCampaign) {
+            throw new ApiError(404, 'Campaign not found');
+        }
+
+        // Create a new campaign based on the original
+        const newCampaign = new Campaign({
+            ...originalCampaign.toObject(),
+            _id: undefined, // Let MongoDB generate a new ID
+            status: 'draft',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            scheduledTime: null,
+            startedAt: null,
+            completedAt: null,
+            stats: {
+                total: 0,
+                sent: 0,
+                delivered: 0,
+                read: 0,
+                failed: 0
+            }
+        });
+
+        await newCampaign.save();
+        return newCampaign;
+    }
 }
 
 module.exports = new CampaignService();

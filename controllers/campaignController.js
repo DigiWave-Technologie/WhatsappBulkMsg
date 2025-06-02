@@ -13,6 +13,7 @@ const Campaign = require('../models/Campaign');
 const Template = require('../models/Template');
 const Group = require('../models/Group'); // Represents contact groups
 const whatsappService = require('../services/whatsappService');
+const campaignProcessor = require('../services/campaignProcessor');
 
 const setDefaultUserProfile = async (numbers, instance) => {
   console.log(`Setting default profile for ${numbers} on instance ${instance}`);
@@ -20,208 +21,192 @@ const setDefaultUserProfile = async (numbers, instance) => {
 };
 
 // Create campaign
-const createCampaign = async (req, res) => {
-  try {
-    const campaignData = req.body;
-    const userId = req.user.userId;
-    const campaign = await campaignService.createCampaign(campaignData, userId);
+const createCampaign = asyncHandler(async (req, res) => {
+    const campaignData = {
+        ...req.body,
+        userId: req.user._id
+    };
+
+    const campaign = await campaignService.createCampaign(campaignData);
     res.status(201).json({
-      success: true,
-      message: 'Campaign created successfully',
-      data: campaign
+        success: true,
+        message: 'Campaign created successfully',
+        data: campaign
     });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
+});
 
 // Get all campaigns
 const getCampaigns = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, status, type, startDate, endDate } = req.query;
-  const filters = { status, type, startDate, endDate };
-  
-  const campaigns = await campaignService.getCampaigns(
-    req.user._id,
-    filters,
-    parseInt(page),
-    parseInt(limit)
-  );
+    const { page = 1, limit = 10, status, type, startDate, endDate } = req.query;
+    const filters = { status, type, startDate, endDate };
+    
+    const campaigns = await campaignService.getCampaigns(
+        req.user._id,
+        filters,
+        parseInt(page),
+        parseInt(limit)
+    );
 
-  res.status(200).json({
-    success: true,
-    message: 'Campaigns retrieved successfully',
-    data: campaigns
-  });
+    res.status(200).json({
+        success: true,
+        message: 'Campaigns retrieved successfully',
+        data: campaigns
+    });
 });
 
 // Get campaign by ID
 const getCampaignById = asyncHandler(async (req, res) => {
-  const { campaignId } = req.params;
-  const userId = req.user.id;
-
-  const campaign = await campaignService.getCampaignById(campaignId, userId);
-
-  res.status(200).json({
-    success: true,
-    data: campaign
-  });
-});
-
-// Update campaign
-const updateCampaign = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-    const userId = req.user.userId;
-    const campaign = await campaignService.updateCampaign(id, updateData, userId);
-    res.status(200).json({
-      success: true,
-      message: 'Campaign updated successfully',
-      data: campaign
-    });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// Delete campaign
-const deleteCampaign = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.userId;
-    await campaignService.deleteCampaign(id, userId);
-    res.status(200).json({
-      success: true,
-      message: 'Campaign deleted successfully'
-    });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// Start campaign (Modified slightly to use service consistently)
-const startCampaign = asyncHandler(async (req, res) => {
     const { campaignId } = req.params;
-    const userId = req.user.id; // Assuming user ID from auth middleware
+    const userId = req.user._id;
 
-    const campaign = await campaignService.startCampaign(userId, campaignId);
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
 
     res.status(200).json({
         success: true,
-        message: 'Campaign started successfully',
         data: campaign
+    });
+});
+
+// Update campaign
+const updateCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const userId = req.user._id;
+    const updateData = req.body;
+
+    const campaign = await campaignService.updateCampaign(campaignId, updateData, userId);
+
+    res.status(200).json({
+        success: true,
+        message: 'Campaign updated successfully',
+        data: campaign
+    });
+});
+
+// Delete campaign
+const deleteCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const userId = req.user._id;
+
+    await campaignService.deleteCampaign(campaignId, userId);
+
+    res.status(200).json({
+        success: true,
+        message: 'Campaign deleted successfully'
+    });
+});
+
+// Start campaign
+const startCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const userId = req.user._id;
+
+    // Verify campaign ownership
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    // Start campaign processing
+    campaignProcessor.processCampaign(campaignId).catch(error => {
+        console.error(`Error processing campaign ${campaignId}:`, error);
+    });
+
+    res.status(200).json({
+        success: true,
+        message: 'Campaign started successfully'
     });
 });
 
 // Pause campaign
-const pauseCampaign = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.userId;
-    const campaign = await campaignService.pauseCampaign(id, userId);
+const pauseCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const userId = req.user._id;
+
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    await campaign.pause();
+
     res.status(200).json({
-      success: true,
-      message: 'Campaign paused successfully',
-      data: campaign
+        success: true,
+        message: 'Campaign paused successfully'
     });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
+});
 
 // Resume campaign
-const resumeCampaign = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.userId;
-    const campaign = await campaignService.resumeCampaign(id, userId);
+const resumeCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const userId = req.user._id;
+
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    await campaign.resume();
+
     res.status(200).json({
-      success: true,
-      message: 'Campaign resumed successfully',
-      data: campaign
+        success: true,
+        message: 'Campaign resumed successfully'
     });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
+});
 
 // Cancel campaign
 const cancelCampaign = asyncHandler(async (req, res) => {
     const { campaignId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    const campaign = await campaignService.cancelCampaign(userId, campaignId);
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    await campaign.cancel();
 
     res.status(200).json({
         success: true,
-        message: 'Campaign cancelled successfully',
-        data: campaign
+        message: 'Campaign cancelled successfully'
     });
 });
 
-// Rerun campaign
-const rerunCampaign = asyncHandler(async (req, res) => {
+// Get campaign stats
+const getCampaignStats = asyncHandler(async (req, res) => {
     const { campaignId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    const campaign = await campaignService.rerunCampaign(userId, campaignId);
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
 
     res.status(200).json({
         success: true,
-        message: 'Campaign has been reset and is ready to be started again.',
-        data: campaign // Return the reset campaign object
+        data: campaign.stats
     });
 });
-
-// Get campaign statistics
-const getCampaignStats = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.userId;
-    const stats = await campaignService.getCampaignStats(id, userId);
-    res.status(200).json({
-      success: true,
-      data: stats
-    });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 
 // Get campaign delivery reports
 const getCampaignDeliveryReports = asyncHandler(async (req, res) => {
-  const { status, startDate, endDate } = req.query;
-  const filters = { status, startDate, endDate };
-  
-  const reports = await campaignService.getCampaignDeliveryReports(
-    req.params.id,
-    req.user._id,
-    filters
-  );
+    const { campaignId } = req.params;
+    const userId = req.user._id;
 
-  res.status(200).json({
-    success: true,
-    message: 'Campaign delivery reports retrieved successfully',
-    data: reports
-  });
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    const reports = campaign.recipients.map(recipient => ({
+        phoneNumber: recipient.phoneNumber,
+        status: recipient.status,
+        metadata: recipient.metadata
+    }));
+
+    res.status(200).json({
+        success: true,
+        data: reports
+    });
 });
 
 // Get user's campaigns
@@ -268,25 +253,44 @@ const getRecipientStatus = asyncHandler(async (req, res) => {
   }
 });
 
-// Schedule a campaign
-const scheduleCampaign = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const scheduleData = req.body;
-    const userId = req.user.userId;
-    const campaign = await campaignService.scheduleCampaign(id, scheduleData, userId);
+// Schedule campaign
+const scheduleCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const { scheduledTime } = req.body;
+    const userId = req.user._id;
+
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    await campaignService.scheduleCampaign(campaignId, scheduledTime);
+
     res.status(200).json({
-      success: true,
-      message: 'Campaign scheduled successfully',
-      data: campaign
+        success: true,
+        message: 'Campaign scheduled successfully'
     });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({
-      success: false,
-      message: error.message
+});
+
+// Rerun campaign
+const rerunCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const userId = req.user._id;
+
+    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    if (!campaign) {
+        throw new ApiError(404, 'Campaign not found');
+    }
+
+    // Create a new campaign based on the existing one
+    const newCampaign = await campaignService.rerunCampaign(campaignId);
+
+    res.status(200).json({
+        success: true,
+        message: 'Campaign rerun created successfully',
+        data: newCampaign
     });
-  }
-};
+});
 
 // Upload CSV for campaign recipients
 const uploadCSV = async (req, res) => {
@@ -321,6 +325,7 @@ module.exports = {
   updateCampaign,
   deleteCampaign,
   startCampaign,
+  scheduleCampaign,
   pauseCampaign,
   resumeCampaign,
   cancelCampaign,
@@ -329,6 +334,5 @@ module.exports = {
   getCampaignDeliveryReports,
   getUserCampaigns,
   getRecipientStatus,
-  scheduleCampaign,
   uploadCSV
 };

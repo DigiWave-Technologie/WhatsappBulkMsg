@@ -119,6 +119,10 @@ const userLogin = async ({ username, password }, deviceInfo) => {
 
     await user.save();
 
+    // Get the base URL for profile picture
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const profilePictureUrl = user.profilePicture ? `${baseUrl}${user.profilePicture}` : null;
+
     return {
       token,
       user: {
@@ -139,7 +143,8 @@ const userLogin = async ({ username, password }, deviceInfo) => {
         whatsappNumbers: user.whatsappNumbers,
         messageLimits: user.messageLimits,
         senderIds: user.senderIds,
-        requirePasswordChange: user.requirePasswordChange
+        requirePasswordChange: user.requirePasswordChange,
+        profilePicture: profilePictureUrl || null
       }
     };
   } catch (error) {
@@ -729,9 +734,15 @@ const getAllUsers = async (requesterId) => {
 
   const users = await User.find(query)
     .select('-password -sessions')
-    .populate('createdBy', 'firstName lastName email');
+    .populate('createdBy', 'firstName lastName email profilePicture');
 
-  return users;
+  // Get the base URL for profile pictures
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+  return users.map(user => ({
+    ...user.toObject(),
+    profilePicture: user.profilePicture ? `${baseUrl}${user.profilePicture}` : null
+  }));
 };
 
 // Logout service
@@ -902,7 +913,7 @@ const updateProfilePicture = async (userId, filePath) => {
       throw new Error('User not found');
     }
 
-    // If there's an existing profile picture, you might want to delete it
+    // If there's an existing profile picture, delete it
     if (user.profilePicture) {
       const oldFilePath = path.join(__dirname, '..', user.profilePicture);
       try {
@@ -912,11 +923,19 @@ const updateProfilePicture = async (userId, filePath) => {
       }
     }
 
-    // Update the profile picture path
-    user.profilePicture = filePath;
+    // Update the profile picture path with the relative path
+    const relativePath = filePath.replace(/\\/g, '/'); // Convert Windows paths to forward slashes
+    user.profilePicture = relativePath;
     await user.save();
 
-    return user;
+    // Return the full URL for the profile picture
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const fullUrl = `${baseUrl}${relativePath}`;
+
+    return {
+      ...user.toObject(),
+      profilePicture: fullUrl
+    };
   } catch (error) {
     console.error('Error in updateProfilePicture:', error);
     throw error;

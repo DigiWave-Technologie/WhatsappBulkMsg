@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "random-uuid",
+    "_postman_id": "credit-category-management-collection",
     "name": "Credit and Category Management",
-    "description": "Collection for Credit and Category Management APIs covering all PRD features",
+    "description": "Collection for Credit and Category Management APIs covering all tested features.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -11,6 +11,21 @@
       "item": [
         {
           "name": "Login - Super Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"superadmin1\",\n  \"password\": \"SuperAdmin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -19,33 +34,14 @@
                   "var jsonData = pm.response.json();",
                   "if (jsonData.success && jsonData.data.token) {",
                   "    pm.environment.set('token', jsonData.data.token);",
-                  "    pm.environment.set('user_id', jsonData.data.user._id);",
+                  "    pm.environment.set('user_id', jsonData.data.user.id || jsonData.data.user._id);",
                   "    pm.environment.set('user_role', jsonData.data.user.role);",
-                  "    console.log('Token and user details set successfully');",
                   "}"
                 ],
                 "type": "text/javascript"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"username\": \"superadmin1\",\n    \"password\": \"SuperAdmin@123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
-            }
-          }
+          ]
         },
         {
           "name": "Login - Admin",
@@ -171,25 +167,17 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "type": "text"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"Marketing\",\n    \"description\": \"Marketing related templates\",\n    \"creditCost\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"name\": \"TestCategory\",\n  \"description\": \"Test Description\",\n  \"creditCost\": 10\n}"
             },
             "url": {
-              "raw": "{{base_url}}/categories",
+              "raw": "{{base_url}}/api/categories",
               "host": ["{{base_url}}"],
-              "path": ["categories"]
+              "path": ["api", "categories"]
             }
           }
         },
@@ -198,16 +186,12 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "type": "text"
-              }
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "url": {
-              "raw": "{{base_url}}/categories",
+              "raw": "{{base_url}}/api/categories",
               "host": ["{{base_url}}"],
-              "path": ["categories"]
+              "path": ["api", "categories"]
             }
           }
         },
@@ -234,25 +218,17 @@
           "request": {
             "method": "PUT",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "type": "text"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"Updated Marketing\",\n    \"description\": \"Updated marketing templates\",\n    \"creditCost\": 2\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"name\": \"UpdatedCategory\",\n  \"description\": \"Updated Description\",\n  \"creditCost\": 20,\n  \"isActive\": true\n}"
             },
             "url": {
-              "raw": "{{base_url}}/categories/{{category_id}}",
+              "raw": "{{base_url}}/api/categories/{{category_id}}",
               "host": ["{{base_url}}"],
-              "path": ["categories", "{{category_id}}"]
+              "path": ["api", "categories", "{{category_id}}"]
             }
           }
         },
@@ -261,16 +237,12 @@
           "request": {
             "method": "DELETE",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "type": "text"
-              }
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "url": {
-              "raw": "{{base_url}}/categories/{{category_id}}",
+              "raw": "{{base_url}}/api/categories/{{category_id}}",
               "host": ["{{base_url}}"],
-              "path": ["categories", "{{category_id}}"]
+              "path": ["api", "categories", "{{category_id}}"]
             }
           }
         }
@@ -551,6 +523,58 @@
               "raw": "{{base_url}}/credits/check/{{user_id}}",
               "host": ["{{base_url}}"],
               "path": ["credits", "check", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credit Management",
+      "item": [
+        {
+          "name": "Transfer Credits",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{to_user_id}}\",\n  \"categoryId\": \"{{category_id}}\",\n  \"creditAmount\": 100,\n  \"description\": \"Test transfer from superadmin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/credits/transfer",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "transfer"]
+            }
+          }
+        },
+        {
+          "name": "Get User Credit Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/credits/user/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "user", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Credit Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/credits/transactions/user/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "transactions", "user", "{{user_id}}"]
             }
           }
         }
