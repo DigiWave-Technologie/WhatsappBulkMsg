@@ -353,7 +353,6 @@ class CampaignService {
             .populate(await Campaign.findById(campaignId).select('targetType').then(c => c?.targetType === 'individual' ? 'contactGroupId' : ''));
 
         if (!campaign || campaign.status !== 'running') {
-            console.log(`Campaign ${campaignId} not found or not in running state. Aborting send process.`);
             return;
         }
 
@@ -361,7 +360,6 @@ class CampaignService {
         let { lastProcessedIndex = 0 } = campaign;
 
         if (!templateId) {
-             console.error(`Campaign ${campaignId}: Template data missing.`);
              campaign.status = 'failed';
              campaign.error = 'Template data missing for campaign.';
              await campaign.save();
@@ -378,7 +376,6 @@ class CampaignService {
                 for (let i = lastProcessedIndex; i < contacts.length; i++) {
                     const currentCampaignState = await Campaign.findById(campaignId).select('status');
                     if (!currentCampaignState || currentCampaignState.status !== 'running') {
-                        console.log(`Campaign ${campaignId} status changed to ${currentCampaignState?.status}. Stopping message loop.`);
                         break;
                     }
 
@@ -435,8 +432,7 @@ class CampaignService {
                         await creditService.deductCredits(userId, 1, 'campaign', campaignId);
 
                     } catch (error) {
-                        console.error(`Failed to send to ${contact.phone} in campaign ${campaignId}:`, error);
-                        await MessageLog.create({ /* ... log data ... */ status: 'failed', error: error.message });
+                        await MessageLog.create({ status: 'failed', error: error.message });
                         campaign.failedCount = (campaign.failedCount || 0) + 1;
                     } finally {
                          campaign.lastProcessedIndex = i + 1;
@@ -448,7 +444,6 @@ class CampaignService {
             } else if (targetType === 'group' || targetType === 'community' || targetType === 'channel') {
                  const currentCampaignState = await Campaign.findById(campaignId).select('status');
                  if (!currentCampaignState || currentCampaignState.status !== 'running') {
-                     console.log(`Campaign ${campaignId} status changed to ${currentCampaignState?.status}. Aborting group send.`);
                      return;
                  }
 
@@ -481,12 +476,11 @@ class CampaignService {
                             templateId.language,
                             processedComponents // <-- Pass processed components
                         );
-                        await MessageLog.create({ /* ... log data ... */ status: 'sent', targetType: targetType });
+                        await MessageLog.create({ status: 'sent', targetType: targetType });
                         campaign.sentCount = 1;
                         await creditService.deductCredits(userId, 1, 'campaign', campaignId);
                     } catch (error) {
-                        console.error(`Failed to send to ${targetType} ${targetId} in campaign ${campaignId}:`, error);
-                        await MessageLog.create({ /* ... log data ... */ status: 'failed', error: error.message, targetType: targetType });
+                        await MessageLog.create({ status: 'failed', error: error.message, targetType: targetType });
                         campaign.failedCount = 1;
                     } finally {
                         campaign.lastProcessedIndex = 1;
@@ -502,15 +496,10 @@ class CampaignService {
                      finalCampaignState.status = 'completed';
                      finalCampaignState.completedAt = new Date();
                      await finalCampaignState.save();
-                     console.log(`Campaign ${campaignId} completed successfully.`);
-                 } else {
-                      // This case should ideally not happen if the loop breaks correctly on pause/cancel
-                      console.warn(`Campaign ${campaignId} finished send loop but not all recipients processed? Index: ${finalCampaignState.lastProcessedIndex}, Total: ${finalCampaignState.totalRecipients}`);
                  }
             }
 
         } catch (campaignError) {
-             console.error(`Critical error processing campaign ${campaignId}:`, campaignError);
              // Fetch latest state before updating to avoid overwriting pause/cancel
              const errorCampaignState = await Campaign.findById(campaignId);
              if (errorCampaignState && errorCampaignState.status === 'running') {

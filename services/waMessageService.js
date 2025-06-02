@@ -12,7 +12,6 @@ const sendWhatsAppMessages = async (
   numbers,
   campaignInstance
 ) => {
-  console.log("campaignInstance", campaignInstance);
   // Extract campaignTitle and userMessage from the campaignData object.
   const { campaignTitle, userMessage } = campaignData;
 
@@ -34,7 +33,6 @@ const sendWhatsAppMessages = async (
         return data;
       })
       .catch((err) => {
-        console.error(`Error sending message to ${number}:`, err);
         // Optionally handle errors here.
         return null;
       })
