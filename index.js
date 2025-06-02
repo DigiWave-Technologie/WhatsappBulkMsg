@@ -5,12 +5,10 @@ const bodyParser = require("body-parser");
 require("dotenv").config();
 const connectDB = require("./config/mongodb");
 const { errorHandler } = require("./middleware/errorHandler");
-const fs = require("fs");
 const path = require("path");
-const mongoose = require('mongoose');
 
 const app = express();
-const PORT = process.env.PORT || 3000; // Changed to 3000 to match your request
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(
@@ -81,9 +79,6 @@ const startServer = async () => {
     // Start server
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      console.log('Available routes:');
-      console.log('POST /api/auth/createUser - Create a new user');
-      console.log('POST /api/auth/login - User login');
     });
   } catch (error) {
     console.error('Failed to start server:', error);
