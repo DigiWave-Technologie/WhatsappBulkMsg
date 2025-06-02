@@ -7,20 +7,16 @@ const logger = require('../utils/logger');
 
 class WhatsAppService {
     constructor() {
-        this.metaApiUrl = 'https://graph.facebook.com/v17.0';
-        // Use dummy data if config is not available
-        this.waapiUrl = config?.waapi?.baseUrl || 'https://api.waapi.example.com';
-        this.dummyMode = !config?.waapi?.baseUrl;
-        
-        if (this.dummyMode) {
-            logger.warn('Running WhatsApp service in dummy mode - using test data');
-        }
+        this.metaApiUrl = 'https://graph.facebook.com/v22.0';
+        this.metaPhoneNumberId = '441959912339170';
+        this.metaAccessToken = 'EAAaWMPrfZA38BO09zy1ZB6BKsZAxV3BgvXnWkpOSMXuag99gFoWAqZAIesehyC2ypkNhnV2M01MI5MJKxt6FSXZBq8aGwBIS3l82ajosUx8YT260AYC0gKZA4DTe1Mc8yZBaHAUzVOjtZB7HCYP92B8TnnqpJVjkiAiJZA2AP6quD2tQmoK5gOjVVZASwR6JhtYOaclbEZAJ9qOOQiZCa3T2fihHew3pXqIUOh32Lw2SdJfsUE8ZD';
+        this.dummyMode = false;
     }
 
     // Initialize Meta Cloud API client
     async initMetaClient(phoneNumberId, accessToken) {
-        this.metaPhoneNumberId = phoneNumberId || 'dummy_phone_id';
-        this.metaAccessToken = accessToken || 'dummy_access_token';
+        this.metaPhoneNumberId = phoneNumberId || this.metaPhoneNumberId;
+        this.metaAccessToken = accessToken || this.metaAccessToken;
     }
 
     // Initialize WAAPI client
@@ -31,20 +27,10 @@ class WhatsAppService {
     // Send message using Meta Cloud API
     async sendMetaMessage(to, message) {
         try {
-            if (this.dummyMode) {
-                // Return dummy response
-                return {
-                    messaging_product: 'whatsapp',
-                    contacts: [{ input: to, wa_id: 'dummy_wa_id' }],
-                    messages: [{ id: `dummy_msg_${Date.now()}` }]
-                };
-            }
-
             const response = await axios.post(
                 `${this.metaApiUrl}/${this.metaPhoneNumberId}/messages`,
                 {
                     messaging_product: 'whatsapp',
-                    recipient_type: 'individual',
                     to,
                     ...message
                 },
@@ -57,14 +43,6 @@ class WhatsAppService {
             );
             return response.data;
         } catch (error) {
-            if (this.dummyMode) {
-                // Return dummy success response in dummy mode
-                return {
-                    messaging_product: 'whatsapp',
-                    contacts: [{ input: to, wa_id: 'dummy_wa_id' }],
-                    messages: [{ id: `dummy_msg_${Date.now()}` }]
-                };
-            }
             throw new ApiError(500, `Meta API Error: ${error.message}`);
         }
     }
@@ -204,17 +182,20 @@ class WhatsAppService {
     }
 
     // Send Template Message
-    async sendTemplateMessage(to, templateName, languageCode, components) {
+    async sendTemplateMessage(to, templateName, languageCode, components = []) {
         const message = {
             type: 'template',
             template: {
                 name: templateName,
                 language: {
                     code: languageCode
-                },
-                components
+                }
             }
         };
+
+        if (components && components.length > 0) {
+            message.template.components = components;
+        }
 
         return this.sendMetaMessage(to, message);
     }
