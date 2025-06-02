@@ -25,10 +25,10 @@ const config = {
 
     // WhatsApp API configuration
     whatsapp: {
-        apiUrl: process.env.WHATSAPP_API_URL,
-        apiKey: process.env.WHATSAPP_API_KEY,
-        phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-        businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+        apiUrl: 'https://graph.facebook.com/v22.0',
+        phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '441959912339170',
+        businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '480243005165232',
+        accessToken: process.env.WHATSAPP_ACCESS_TOKEN
     },
 
     // File upload configuration

@@ -8,7 +8,7 @@
 // async function createButtonTemplate() {
 //   try {
 //     const longLivedTokenResponse = await axios.get(
-//       `https://graph.facebook.com/v21.0/oauth/access_token`,
+//       `https://graph.facebook.com/v22.0/oauth/access_token`,
 //       {
 //         params: {
 //           grant_type: "fb_exchange_token",
@@ -64,7 +64,7 @@
 //     };
 
 //     const templateResponse = await axios.post(
-//       `https://graph.facebook.com/v21.0/${WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+//       `https://graph.facebook.com/v22.0/${WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
 //       templateData,
 //       {
 //         headers: {

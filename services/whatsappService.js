@@ -4,19 +4,11 @@ const config = require('../config/config');
 const WhatsAppConfig = require('../models/WhatsAppConfig');
 const MessageLog = require('../models/MessageLog');
 const logger = require('../utils/logger');
+const appConfig = require('../config/config');
 
 class WhatsAppService {
     constructor() {
-        this.metaApiUrl = 'https://graph.facebook.com/v22.0';
-        this.metaPhoneNumberId = '441959912339170';
-        this.metaAccessToken = 'EAAaWMPrfZA38BO09zy1ZB6BKsZAxV3BgvXnWkpOSMXuag99gFoWAqZAIesehyC2ypkNhnV2M01MI5MJKxt6FSXZBq8aGwBIS3l82ajosUx8YT260AYC0gKZA4DTe1Mc8yZBaHAUzVOjtZB7HCYP92B8TnnqpJVjkiAiJZA2AP6quD2tQmoK5gOjVVZASwR6JhtYOaclbEZAJ9qOOQiZCa3T2fihHew3pXqIUOh32Lw2SdJfsUE8ZD';
         this.dummyMode = false;
-    }
-
-    // Initialize Meta Cloud API client
-    async initMetaClient(phoneNumberId, accessToken) {
-        this.metaPhoneNumberId = phoneNumberId || this.metaPhoneNumberId;
-        this.metaAccessToken = accessToken || this.metaAccessToken;
     }
 
     // Initialize WAAPI client
@@ -25,20 +17,26 @@ class WhatsAppService {
     }
 
     // Send message using Meta Cloud API
-    async sendMetaMessage(to, message) {
+    async sendMetaMessage(to, message, phoneNumberId, accessToken) {
         try {
+            const url = `${appConfig.whatsapp.apiUrl}/${phoneNumberId}/messages`;
+            const headers = {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            };
+
+            logger.info(`Sending Meta message to: ${url}`);
+            logger.info(`Authorization header: ${headers.Authorization}`);
+
             const response = await axios.post(
-                `${this.metaApiUrl}/${this.metaPhoneNumberId}/messages`,
+                url,
                 {
                     messaging_product: 'whatsapp',
                     to,
                     ...message
                 },
                 {
-                    headers: {
-                        'Authorization': `Bearer ${this.metaAccessToken}`,
-                        'Content-Type': 'application/json'
-                    }
+                    headers
                 }
             );
             return response.data;
@@ -87,7 +85,12 @@ class WhatsAppService {
     }
 
     // Send Quick Campaign Message
-    async sendQuickMessage(to, text, media = null) {
+    async sendQuickMessage(to, text, media = null, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'text',
             text: { body: text }
@@ -101,11 +104,16 @@ class WhatsAppService {
             };
         }
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Button Campaign Message
-    async sendButtonMessage(to, text, buttons) {
+    async sendButtonMessage(to, text, buttons, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'interactive',
             interactive: {
@@ -125,11 +133,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send DP (Display Picture) Campaign Message
-    async sendDPMessage(to, imageUrl, caption = '') {
+    async sendDPMessage(to, imageUrl, caption = '', userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'image',
             image: {
@@ -138,11 +151,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Poll Campaign Message
-    async sendPollMessage(to, question, options) {
+    async sendPollMessage(to, question, options, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'interactive',
             interactive: {
@@ -157,14 +175,18 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Group Campaign Message
-    async sendGroupMessage(groupId, message) {
+    async sendGroupMessage(groupId, message, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
         // Note: This requires special permissions and approval from WhatsApp
         const response = await axios.post(
-            `${this.metaApiUrl}/${this.metaPhoneNumberId}/messages`,
+            `${appConfig.whatsapp.apiUrl}/${config.phoneNumberId}/messages`,
             {
                 messaging_product: 'whatsapp',
                 recipient_type: 'group',
@@ -173,7 +195,7 @@ class WhatsAppService {
             },
             {
                 headers: {
-                    'Authorization': `Bearer ${this.metaAccessToken}`,
+                    'Authorization': `Bearer ${config.accessToken}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -182,7 +204,12 @@ class WhatsAppService {
     }
 
     // Send Template Message
-    async sendTemplateMessage(to, templateName, languageCode, components = []) {
+    async sendTemplateMessage(to, templateName, languageCode, components = [], userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'template',
             template: {
@@ -197,7 +224,7 @@ class WhatsAppService {
             message.template.components = components;
         }
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Handle message status updates
@@ -251,67 +278,41 @@ class WhatsAppService {
                 };
             }
 
-            const url = `${this.metaApiUrl}/${config.phoneNumberId}/messages`;
+            const url = `${appConfig.whatsapp.apiUrl}/${config.phoneNumberId}/messages`;
             const headers = {
                 'Authorization': `Bearer ${config.accessToken}`,
                 'Content-Type': 'application/json'
             };
 
+            logger.info(`Sending Meta message to: ${url}`);
+            logger.info(`Authorization header: ${headers.Authorization}`);
+
             const data = {
                 messaging_product: "whatsapp",
-                    to: to,
+                to: to,
                 type: "template",
-                    template: {
-                        name: templateName,
-                        language: {
-                            code: languageCode
-                    },
-                    components: components
+                template: {
+                    name: templateName,
+                    language: {
+                        code: languageCode
                     }
+                }
             };
 
-            const response = await axios.post(url, data, { headers });
-
-            // Log the message
-            await MessageLog.create({
-                userId,
-                recipient: to,
-                messageType: 'template',
-                content: {
-                    templateName,
-                    languageCode,
-                    components
-                },
-                status: 'sent',
-                messageId: response.data.messages[0].id
-            });
-
-            return response.data;
-        } catch (error) {
-            // Log failed message
-            await MessageLog.create({
-                userId,
-                recipient: to,
-                messageType: 'template',
-                content: {
-                    templateName,
-                    languageCode,
-                    components
-                },
-                status: 'failed',
-                error: error.message,
-                messageId: (error.response?.data?.messages?.[0]?.id) || `dummy_failed_${Date.now()}`
-            });
-
-            if (this.dummyMode) {
-                return {
-                    messaging_product: 'whatsapp',
-                    contacts: [{ input: to, wa_id: 'dummy_wa_id' }],
-                    messages: [{ id: `dummy_msg_${Date.now()}` }]
-                };
+            if (components && components.length > 0) {
+                data.template.components = components;
             }
 
-            throw error;
+            logger.info(`Request data: ${JSON.stringify(data, null, 2)}`);
+
+            const response = await axios.post(url, data, { headers });
+            return response.data;
+        } catch (error) {
+            logger.error(`Error sending message: ${error.message}`);
+            if (error.response) {
+                logger.error(`Error response: ${JSON.stringify(error.response.data, null, 2)}`);
+            }
+            throw new ApiError(500, `Error sending message: ${error.message}`);
         }
     }
 
@@ -322,7 +323,7 @@ class WhatsAppService {
                 throw new Error('WhatsApp configuration not found');
             }
 
-            const url = `${this.metaApiUrl}/${config.whatsappBusinessAccountId}/message_templates`;
+            const url = `${appConfig.whatsapp.apiUrl}/${config.whatsappBusinessAccountId}/message_templates`;
             const headers = {
                 'Authorization': `Bearer ${config.accessToken}`
             };
@@ -341,7 +342,7 @@ class WhatsAppService {
                 throw new Error('WhatsApp configuration not found');
             }
 
-            const url = `${this.metaApiUrl}/${config.whatsappBusinessAccountId}/message_templates`;
+            const url = `${appConfig.whatsapp.apiUrl}/${config.whatsappBusinessAccountId}/message_templates`;
             const headers = {
                 'Authorization': `Bearer ${config.accessToken}`,
                     'Content-Type': 'application/json'
@@ -355,7 +356,12 @@ class WhatsAppService {
     }
 
     // Send List Campaign Message
-    async sendListMessage(to, text, buttonText, sections) {
+    async sendListMessage(to, text, buttonText, sections, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'interactive',
             interactive: {
@@ -377,11 +383,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Location Campaign Message
-    async sendLocationMessage(to, latitude, longitude, name, address) {
+    async sendLocationMessage(to, latitude, longitude, name, address, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'location',
             location: {
@@ -392,11 +403,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Contact Campaign Message
-    async sendContactMessage(to, contacts) {
+    async sendContactMessage(to, contacts, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'contacts',
             contacts: contacts.map(contact => ({
@@ -413,11 +429,16 @@ class WhatsAppService {
             }))
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Reaction Campaign Message
-    async sendReactionMessage(to, messageId, emoji) {
+    async sendReactionMessage(to, messageId, emoji, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'reaction',
             reaction: {
@@ -426,11 +447,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Order Campaign Message
-    async sendOrderMessage(to, orderId, orderItems, orderTotal) {
+    async sendOrderMessage(to, orderId, orderItems, orderTotal, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'order',
             order: {
@@ -448,11 +474,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Interactive Campaign Message (Combined)
-    async sendInteractiveMessage(to, type, data) {
+    async sendInteractiveMessage(to, type, data, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: 'interactive',
             interactive: {
@@ -461,11 +492,16 @@ class WhatsAppService {
             }
         };
 
-        return this.sendMetaMessage(to, message);
+        return this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
     }
 
     // Send Media Campaign Message with Progress
-    async sendMediaMessageWithProgress(to, mediaType, mediaUrl, caption, onProgress) {
+    async sendMediaMessageWithProgress(to, mediaType, mediaUrl, caption, onProgress, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const message = {
             type: mediaType,
             [mediaType]: {
@@ -476,7 +512,7 @@ class WhatsAppService {
 
         try {
             const response = await axios.post(
-                `${this.metaApiUrl}/${this.metaPhoneNumberId}/messages`,
+                `${appConfig.whatsapp.apiUrl}/${config.phoneNumberId}/messages`,
                 {
                     messaging_product: 'whatsapp',
                     recipient_type: 'individual',
@@ -485,7 +521,7 @@ class WhatsAppService {
                 },
                 {
                     headers: {
-                        'Authorization': `Bearer ${this.metaAccessToken}`,
+                        'Authorization': `Bearer ${config.accessToken}`,
                         'Content-Type': 'application/json'
                     },
                     onUploadProgress: progressEvent => {
@@ -501,7 +537,12 @@ class WhatsAppService {
     }
 
     // Send Bulk Messages with Rate Limiting
-    async sendBulkMessages(recipients, message, options = {}) {
+    async sendBulkMessages(recipients, message, options = {}, userId) {
+        const config = await this.getWhatsAppConfig(userId);
+        if (!config) {
+            throw new Error('WhatsApp configuration not found');
+        }
+
         const {
             batchSize = 50,
             delayBetweenBatches = 1000,
@@ -520,7 +561,7 @@ class WhatsAppService {
                 let retries = 0;
                 while (retries < maxRetries) {
                     try {
-                        const result = await this.sendMetaMessage(recipient, message);
+                        const result = await this.sendMetaMessage(recipient, message, config.phoneNumberId, config.accessToken);
                         results.push({ recipient, success: true, data: result });
                         break;
                     } catch (error) {

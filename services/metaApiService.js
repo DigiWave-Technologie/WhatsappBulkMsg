@@ -1,7 +1,7 @@
 const axios = require('axios');
 class MetaApiService {
   constructor() {
-    this.baseUrl = 'https://graph.facebook.com/v18.0';
+    this.baseUrl = 'https://graph.facebook.com/v22.0';
     this.accessToken = process.env.META_ACCESS_TOKEN;
   }
 
