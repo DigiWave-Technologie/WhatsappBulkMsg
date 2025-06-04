@@ -5,6 +5,7 @@ const { authenticateToken } = require("../middleware/auth");
 
 // Protected routes with authentication middleware
 router.post("/transfer", authenticateToken, creditsController.transferCredit);
+router.post("/add", authenticateToken, creditsController.addCredits);
 router.post("/debit", authenticateToken, creditsController.debitCredit);
 router.get("/balance/:userId", authenticateToken, creditsController.getUserCreditBalance);
 router.get("/user/:userId", authenticateToken, creditsController.getUserCreditsByUserId);

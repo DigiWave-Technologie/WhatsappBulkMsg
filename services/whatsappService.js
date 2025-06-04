@@ -5,6 +5,10 @@ const WhatsAppConfig = require('../models/WhatsAppConfig');
 const MessageLog = require('../models/MessageLog');
 const logger = require('../utils/logger');
 const appConfig = require('../config/config');
+const mongoose = require('mongoose');
+const User = require('../models/User');
+const { Credit, CreditTransaction } = require('../models/Credit');
+const Category = require('../models/Category');
 
 class WhatsAppService {
     constructor() {
@@ -289,19 +293,19 @@ class WhatsAppService {
 
             const data = {
                 messaging_product: "whatsapp",
-                to: to,
+                    to: to,
                 type: "template",
-                template: {
-                    name: templateName,
-                    language: {
-                        code: languageCode
+                    template: {
+                        name: templateName,
+                        language: {
+                            code: languageCode
                     }
                 }
             };
 
             if (components && components.length > 0) {
                 data.template.components = components;
-            }
+                    }
 
             logger.info(`Request data: ${JSON.stringify(data, null, 2)}`);
 
@@ -580,6 +584,116 @@ class WhatsAppService {
         }
 
         return results;
+    }
+
+    // Send message with credit deduction in transaction
+    async sendMessageWithCreditDeduction(userId, to, message, creditType = 'virtual_credit') {
+        let user = null;
+        let category = null;
+        try {
+            user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            // Skip credit check for super admin
+            if (user.role !== 'super_admin') {
+                // Get category by name
+                category = await Category.findOne({ name: creditType });
+                if (!category) {
+                    throw new Error(`Credit category '${creditType}' not found`);
+                }
+
+                // Check if category is active
+                if (!category.isActive) {
+                    throw new Error(`Credit category '${creditType}' is not active`);
+                }
+
+                // Check credits
+                const credit = await Credit.findOne({ 
+                    userId, 
+                    categoryId: category._id 
+                });
+
+                if (!credit) {
+                    throw new Error(`No credits found for category '${creditType}'. Please purchase credits first.`);
+                }
+
+                if (!credit.isUnlimited && credit.credit < category.creditCost) {
+                    throw new Error(`Insufficient credits for category '${creditType}'. Required: ${category.creditCost}, Available: ${credit.credit}`);
+                }
+
+                // Deduct credit if not unlimited
+                if (!credit.isUnlimited) {
+                    credit.credit -= category.creditCost;
+                    credit.lastUsed = new Date();
+                    await credit.save();
+
+                    // Log transaction
+                    await CreditTransaction.create({
+                        fromUserId: userId,
+                        toUserId: userId,
+                        categoryId: category._id,
+                        creditType: 'debit',
+                        credit: category.creditCost,
+                        description: `Credit deduction for WhatsApp message (${creditType})`
+                    });
+                }
+            }
+
+            // Get WhatsApp config
+            const config = await this.getWhatsAppConfig(userId);
+            if (!config) {
+                throw new Error('WhatsApp configuration not found');
+            }
+
+            // Send message
+            const response = await this.sendMetaMessage(to, message, config.phoneNumberId, config.accessToken);
+
+            // Log message
+            await MessageLog.create({
+                userId,
+                recipient: to,
+                messageType: message.type || 'text',
+                content: message.text?.body || message.template?.name || 'N/A',
+                status: 'sent',
+                messageId: response.messages?.[0]?.id,
+                categoryId: category?._id,
+                creditCost: category?.creditCost
+            });
+
+            return response;
+
+        } catch (error) {
+            // If message send failed, try to refund the credit
+            if (error.message.includes('Meta API Error') && user && user.role !== 'super_admin') {
+                try {
+                    if (category) {
+                        const credit = await Credit.findOne({ 
+                            userId, 
+                            categoryId: category._id 
+                        });
+                        
+                        if (credit && !credit.isUnlimited) {
+                            credit.credit += category.creditCost;
+                            await credit.save();
+
+                            await CreditTransaction.create({
+                                fromUserId: userId,
+                                toUserId: userId,
+                                categoryId: category._id,
+                                creditType: 'credit',
+                                credit: category.creditCost,
+                                description: `Credit refund due to failed message send (${creditType})`
+                            });
+                        }
+                    }
+                } catch (refundError) {
+                    logger.error('Failed to refund credit:', refundError);
+                }
+            }
+            throw error;
+        }
     }
 }
 

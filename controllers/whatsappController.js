@@ -75,31 +75,38 @@ module.exports.getWhatsAppConfig = async (req, res) => {
 
 module.exports.sendMessage = async (req, res) => {
     try {
-        const { to, templateName, languageCode, components } = req.body;
+        const { to, templateName, languageCode, components, category } = req.body;
         const userId = req.user.userId;
 
         // Validate required fields
-        if (!to || !templateName || !languageCode) {
+        if (!to || !templateName || !languageCode || !category) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields'
+                message: 'Missing required fields: to, templateName, languageCode, and category are required'
             });
         }
 
-        // Validate phone number
-        if (!validatePhoneNumber(to)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid phone number format'
-            });
+        // Create message object
+        const message = {
+            type: 'template',
+            template: {
+                name: templateName,
+                language: {
+                    code: languageCode
+                }
+            }
+        };
+
+        if (components && components.length > 0) {
+            message.template.components = components;
         }
 
-        const result = await whatsappService.sendMessage(
+        // Send message with credit deduction
+        const result = await whatsappService.sendMessageWithCreditDeduction(
             userId,
             to,
-            templateName,
-            languageCode,
-            components
+            message,
+            category // Pass the category name
         );
 
         res.status(200).json({

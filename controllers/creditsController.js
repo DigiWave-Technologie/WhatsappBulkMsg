@@ -246,6 +246,41 @@ const getCreditsTransactionByUserIdCategoryId = async (req, res) => {
   }
 };
 
+// Add credits to user
+const addCredits = async (req, res) => {
+  try {
+    const { userId, categoryId, amount } = req.body;
+
+    if (!userId || !categoryId || !amount) {
+      return res.status(400).json({ 
+        success: false,
+        error: "User ID, category ID, and amount are required." 
+      });
+    }
+
+    // Check if user has permission to add credits
+    if (req.user.role !== 'super_admin' && !req.user.permissions.canManageAllCredits) {
+      return res.status(403).json({
+        success: false,
+        error: "You don't have permission to add credits"
+      });
+    }
+
+    const result = await creditService.addCredit(userId, categoryId, amount);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Credits added successfully',
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   transferCredit,
   debitCredit,
@@ -257,5 +292,6 @@ module.exports = {
   getUserCategory,
   decrementCreditByUser,
   getCreditsTransactionByUserId,
-  getCreditsTransactionByUserIdCategoryId
+  getCreditsTransactionByUserIdCategoryId,
+  addCredits
 };
