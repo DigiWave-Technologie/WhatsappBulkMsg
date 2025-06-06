@@ -41,7 +41,19 @@ const campaignSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['quick', 'csv', 'button', 'dp', 'poll', 'group', 'channel'],
+        enum: [
+            'VIRTUAL_QUICK',
+            'VIRTUAL_BUTTON',
+            'VIRTUAL_DP',
+            'PERSONAL_QUICK',
+            'PERSONAL_BUTTON',
+            'PERSONAL_POLL',
+            'INTERNATIONAL_PERSONAL_QUICK',
+            'INTERNATIONAL_PERSONAL_BUTTON',
+            'INTERNATIONAL_PERSONAL_POLL',
+            'INTERNATIONAL_VIRTUAL_QUICK',
+            'INTERNATIONAL_VIRTUAL_BUTTON'
+        ],
         required: true
     },
     status: {

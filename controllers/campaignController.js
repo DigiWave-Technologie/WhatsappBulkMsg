@@ -8,7 +8,7 @@ const { getRandomInstance } = require("../utils/RandomInstance");
 // Import the credit service function
 const creditService = require("../services/creditsService");
 const { asyncHandler, ApiError } = require('../middleware/errorHandler');
-const { validatePhoneNumber } = require('../utils/helpers');
+const { validatePhoneNumber } = require('../utils/validators');
 const Campaign = require('../models/Campaign');
 const Template = require('../models/Template');
 const Group = require('../models/Group'); // Represents contact groups
@@ -22,6 +22,7 @@ const setDefaultUserProfile = async (numbers, instance) => {
 
 // Create campaign
 const createCampaign = asyncHandler(async (req, res) => {
+    console.log('Received campaign data:', req.body);
     const campaignData = {
         ...req.body,
         userId: req.user._id

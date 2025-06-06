@@ -25,6 +25,20 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware to log request body for POST requests to /api/campaigns
+app.use('/api/campaigns', (req, res, next) => {
+  if (req.method === 'POST') {
+    console.log('Campaign POST request body:', req.body);
+  }
+  next();
+});
+
+// Middleware to log request body for all requests
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url} request body:`, req.body);
+  next();
+});
+
 // Import existing routes
 const authRoutes = require("./routes/authRoutes");
 const CreditsRoutes = require("./routes/creditsRoutes");

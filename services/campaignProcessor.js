@@ -5,6 +5,8 @@ const logger = require('../utils/logger');
 const { RateLimiter } = require('limiter');
 const creditService = require('./creditsService');
 const Category = require('../models/Category');
+const Credit = require('../models/Credit');
+const { CreditTransaction } = require('../models/Credit');
 
 class CampaignProcessor {
     constructor() {
@@ -34,107 +36,61 @@ class CampaignProcessor {
 
     async processCampaign(campaignId) {
         try {
-            const campaign = await Campaign.findById(campaignId).populate('category');
+            const campaign = await Campaign.findById(campaignId);
+
             if (!campaign) {
                 throw new ApiError(404, 'Campaign not found');
             }
 
-            if (this.processingCampaigns.has(campaignId)) {
-                throw new ApiError(400, 'Campaign is already being processed');
+            // Find category that has this campaign
+            const category = await Category.findOne({
+                'campaignTypes.campaignIds': campaign._id,
+                isActive: true
+            });
+
+            if (!category) {
+                throw new ApiError(404, 'No active category found for this campaign');
             }
 
-            // Check if campaign category exists and is active
-            if (!campaign.category || !campaign.category.isActive) {
-                throw new ApiError(400, 'Invalid or inactive campaign category');
-            }
-
-            // Check if campaign is within allowed time duration
-            const now = new Date();
-            const campaignStartTime = new Date(campaign.scheduledTime || campaign.createdAt);
-            const timeDiff = now - campaignStartTime;
-            
-            if (timeDiff > campaign.category.maxDuration * 60 * 60 * 1000) { // Convert hours to milliseconds
-                throw new ApiError(400, 'Campaign duration exceeds category limit');
-            }
-
-            // Check if user has sufficient credits
+            // Calculate required credits
             const requiredCredits = await this.calculateRequiredCredits(campaign);
-            const hasCredits = await creditService.checkUserCredits(campaign.userId, campaign.category._id, requiredCredits);
-            
-            if (!hasCredits) {
-                throw new ApiError(402, 'Insufficient credits to run this campaign');
+
+            // Check user's credit balance
+            const userCredit = await Credit.findOne({
+                userId: campaign.userId,
+                categoryId: category._id
+            });
+
+            if (!userCredit || userCredit.credit < requiredCredits) {
+                throw new ApiError(400, 'Insufficient credits for this campaign');
             }
 
-            // Deduct credits before starting the campaign
-            await creditService.debitCredits(campaign.userId, campaign.category._id, requiredCredits, campaign._id);
+            // Deduct credits
+            userCredit.credit -= requiredCredits;
+            await userCredit.save();
 
-            this.processingCampaigns.set(campaignId, true);
+            // Create credit transaction
+            await CreditTransaction.create({
+                fromUserId: campaign.userId,
+                toUserId: campaign.userId,
+                categoryId: category._id,
+                creditType: 'debit',
+                credit: requiredCredits,
+                campaignId: campaign._id,
+                description: `Credits used for campaign: ${campaign.name}`
+            });
+
+            // Update campaign status
             campaign.status = 'running';
             await campaign.save();
 
-            // Apply anti-ban measures
-            await this.applyAntiBanMeasures(campaign);
-
-            // Process based on campaign type
-            switch (campaign.type) {
-                case 'quick':
-                    await this.processQuickCampaign(campaign);
-                    break;
-                case 'button':
-                    await this.processButtonCampaign(campaign);
-                    break;
-                case 'dp':
-                    await this.processDPCampaign(campaign);
-                    break;
-                case 'poll':
-                    await this.processPollCampaign(campaign);
-                    break;
-                case 'group':
-                    await this.processGroupCampaign(campaign);
-                    break;
-                case 'list':
-                    await this.processListCampaign(campaign);
-                    break;
-                case 'location':
-                    await this.processLocationCampaign(campaign);
-                    break;
-                case 'contact':
-                    await this.processContactCampaign(campaign);
-                    break;
-                case 'order':
-                    await this.processOrderCampaign(campaign);
-                    break;
-                default:
-                    throw new ApiError(400, 'Unsupported campaign type');
-            }
-
-            campaign.status = 'completed';
-            await campaign.save();
+            return {
+                success: true,
+                message: 'Campaign processed successfully',
+                creditsUsed: requiredCredits
+            };
         } catch (error) {
-            logger.error(`Error processing campaign ${campaignId}:`, error);
-            const campaign = await Campaign.findById(campaignId);
-            if (campaign) {
-                campaign.status = 'failed';
-                await campaign.save();
-
-                // Refund credits if campaign fails before completion
-                if (error.message !== 'Insufficient credits to run this campaign') {
-                    await creditService.addCredit(campaign.userId, campaign.category._id, requiredCredits);
-                    await creditService.logTransaction({
-                        fromUserId: campaign.userId,
-                        toUserId: campaign.userId,
-                        categoryId: campaign.category._id,
-                        creditType: 'credit',
-                        credit: requiredCredits,
-                        campaignId: campaign._id,
-                        description: 'Credit refund due to campaign failure',
-                        metadata: { error: error.message }
-                    });
-                }
-            }
             throw error;
-        } finally {
-            this.processingCampaigns.delete(campaignId);
         }
     }
 
@@ -474,27 +430,43 @@ class CampaignProcessor {
     }
 
     async calculateRequiredCredits(campaign) {
-        if (!campaign.category) {
-            throw new ApiError(400, 'Campaign category not found');
+        try {
+            // Find category that has this campaign ID
+            const category = await Category.findOne({
+                'campaignTypes.campaignIds': campaign._id,
+                isActive: true
+            });
+
+            if (!category) {
+                throw new ApiError(404, 'No active category found for this campaign');
+            }
+
+            // Find campaign type configuration
+            const campaignType = category.campaignTypes.find(ct => 
+                ct.campaignIds.includes(campaign._id)
+            );
+
+            if (!campaignType) {
+                throw new ApiError(400, 'Campaign not found in category');
+            }
+
+            // Calculate base credits
+            let totalCredits = category.creditCost * campaignType.creditMultiplier;
+
+            // Add media credits if present
+            if (campaign.media && campaign.media.type !== 'none') {
+                totalCredits += category.mediaCreditCost;
+            }
+
+            // Add interactive credits if present
+            if (campaign.buttons && campaign.buttons.length > 0) {
+                totalCredits += category.interactiveCreditCost;
+            }
+
+            return totalCredits;
+        } catch (error) {
+            throw error;
         }
-
-        // Base credits from category
-        let totalCredits = campaign.category.creditCost;
-
-        // Multiply by number of recipients
-        totalCredits *= campaign.recipients.length;
-
-        // Add additional credits for media if present
-        if (campaign.media) {
-            totalCredits += campaign.recipients.length * (campaign.category.mediaCreditCost || 1);
-        }
-
-        // Add credits for interactive elements if applicable
-        if (['button', 'list', 'poll'].includes(campaign.type)) {
-            totalCredits += campaign.recipients.length * (campaign.category.interactiveCreditCost || 1);
-        }
-
-        return Math.ceil(totalCredits); // Round up to nearest whole credit
     }
 }
 

@@ -259,7 +259,7 @@ const addCredits = async (req, res) => {
     }
 
     // Check if user has permission to add credits
-    if (req.user.role !== 'super_admin' && !req.user.permissions.canManageAllCredits) {
+    if (req.user.role !== 'super_admin' && !req.user.rolePermissions.canManageAllCredits) {
       return res.status(403).json({
         success: false,
         error: "You don't have permission to add credits"
@@ -281,6 +281,21 @@ const addCredits = async (req, res) => {
   }
 };
 
+// Get campaign type credit balance
+const getCampaignTypeCreditBalance = async (req, res) => {
+    try {
+        const userId = req.user.userId; // Get from authenticated user
+        const balance = await creditService.getCampaignTypeCreditBalance(userId);
+        
+        return res.status(200).json({
+            success: true,
+            data: balance
+        });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
+};
+
 module.exports = {
   transferCredit,
   debitCredit,
@@ -293,5 +308,6 @@ module.exports = {
   decrementCreditByUser,
   getCreditsTransactionByUserId,
   getCreditsTransactionByUserIdCategoryId,
-  addCredits
+  addCredits,
+  getCampaignTypeCreditBalance
 };

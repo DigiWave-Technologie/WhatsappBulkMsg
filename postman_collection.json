@@ -1,0 +1,320 @@
+{
+  "info": {
+    "name": "WhatsApp Bulk Campaign API - Complete Flow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Complete Flow",
+      "item": [
+        {
+          "name": "1.1 Login as Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    pm.environment.set('superadmin_token', jsonData.data.token);",
+                  "    pm.environment.set('superadmin_id', jsonData.data.user._id);",
+                  "    console.log('Super Admin Token:', jsonData.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"superadmin1\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.2 Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    pm.environment.set('category_id', jsonData.data._id);",
+                  "    console.log('Category ID:', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadmin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"virtual_credit\",\n    \"description\": \"Credits for virtual number messages\",\n    \"creditCost\": 2,\n    \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "categories"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Create Test User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    pm.environment.set('test_user_id', jsonData.data._id);",
+                  "    console.log('Test User ID:', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadmin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser1\",\n    \"password\": \"test123\",\n    \"role\": \"user\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "1.4 Login as Test User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    pm.environment.set('user_token', jsonData.data.token);",
+                  "    console.log('User Token:', jsonData.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"testuser1\",\n    \"password\": \"test123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.5 Add Credits to User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    console.log('Credits added successfully');",
+                  "} else {",
+                  "    console.error('Error:', jsonData.error);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{superadmin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"{{test_user_id}}\",\n    \"categoryId\": \"{{category_id}}\",\n    \"amount\": 100,\n    \"description\": \"Initial credit allocation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/credits/add",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "add"]
+            }
+          }
+        },
+        {
+          "name": "1.6 Configure WhatsApp",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    console.log('WhatsApp configured successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"whatsappBusinessAccountId\": \"123456789\",\n    \"phoneNumberId\": \"441959912339170\",\n    \"accessToken\": \"EAAaWMPrfZA38BO2SwxC9Eqm9T4475ks204GXnGqoDAZAtRemFmOHHZCbH7rGi54qT01XnNNFhk83s0D5YQ6pw1LWuR3h5PjtqO3UtuZBzCmVdOjMtfZCRiZCRsV0oyfRE0o6Sm6PUDHHRXPrhzXtIujxGbjkeM8dKPI7we22rs2CQGSyi1yI5FkNmWtZCdjeFnZBPPJx9FsQyTcz8MVnNl7MCAeiNs5KORZBvY3j5rsns8q98MGRF6t8ZD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/whatsapp/configure",
+              "host": ["{{base_url}}"],
+              "path": ["api", "whatsapp", "configure"]
+            }
+          }
+        },
+        {
+          "name": "1.7 Send WhatsApp Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    pm.environment.set('message_id', jsonData.data.messageId);",
+                  "    console.log('Message ID:', jsonData.data.messageId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"to\": \"918347012320\",\n    \"templateName\": \"hello_world\",\n    \"languageCode\": \"en_US\",\n    \"category\": \"virtual_credit\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/whatsapp/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "whatsapp", "send"]
+            }
+          }
+        },
+        {
+          "name": "1.8 Check Message Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/whatsapp/message-status/{{message_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "whatsapp", "message-status", "{{message_id}}"]
+            }
+          }
+        },
+        {
+          "name": "1.9 View All Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/credits/transactions/user/{{test_user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "credits", "transactions", "user", "{{test_user_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 

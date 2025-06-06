@@ -691,6 +691,65 @@ class CreditService {
 
     return transferMatrix[fromRole]?.includes(toRole) || false;
   }
+
+  /**
+   * Get credit balance for all campaign types
+   */
+  async getCampaignTypeCreditBalance(userId) {
+    try {
+      const campaignTypes = [
+        'VIRTUAL_QUICK',
+        'VIRTUAL_BUTTON',
+        'VIRTUAL_DP',
+        'PERSONAL_QUICK',
+        'PERSONAL_BUTTON',
+        'PERSONAL_POLL',
+        'INTERNATIONAL_PERSONAL_QUICK',
+        'INTERNATIONAL_PERSONAL_BUTTON',
+        'INTERNATIONAL_PERSONAL_POLL',
+        'INTERNATIONAL_VIRTUAL_QUICK',
+        'INTERNATIONAL_VIRTUAL_BUTTON'
+      ];
+
+      const balancePromises = campaignTypes.map(async (type) => {
+        // Get all transactions for this campaign type
+        const transactions = await CreditTransaction.find({
+          fromUserId: userId,
+          'metadata.campaignType': type
+        });
+
+        // Calculate total credits used
+        const totalUsed = transactions.reduce((sum, t) => sum + t.credit, 0);
+
+        // Get current credit balance
+        const credit = await Credit.findOne({
+          userId,
+          'metadata.campaignType': type
+        });
+
+        return {
+          campaignType: type,
+          totalUsed,
+          currentBalance: credit ? credit.credit : 0,
+          lastTransaction: transactions.length > 0 ? transactions[transactions.length - 1].createdAt : null
+        };
+      });
+
+      const balances = await Promise.all(balancePromises);
+
+      // Calculate total balance across all campaign types
+      const totalBalance = balances.reduce((sum, b) => sum + b.currentBalance, 0);
+      const totalUsed = balances.reduce((sum, b) => sum + b.totalUsed, 0);
+
+      return {
+        campaignBalances: balances,
+        totalBalance,
+        totalUsed
+      };
+    } catch (error) {
+      throw new Error(`Error getting campaign type credit balance: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new CreditService();

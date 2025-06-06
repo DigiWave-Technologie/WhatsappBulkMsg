@@ -1,14 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const virtualNumberCampaign = require('../controllers/virtualNumberCampaign.controller');
-const multer = require('multer');
+const { sendWhatsappBulkMsgs, getMessageStatus, getChatHistory, createTemplate, getTemplate } = require('../controllers/virtualCampaign.controller');
+const { authenticateToken } = require('../middleware/auth');
 
+// Send bulk messages with various campaign types
+router.post('/send', authenticateToken, sendWhatsappBulkMsgs);
 
-const upload = multer({
-    storage: multer.memoryStorage()
-});
+// Get message status
+router.get('/message/:messageId/status', authenticateToken, getMessageStatus);
 
-router.post('/campaign', upload.array('media', 6), virtualNumberCampaign.sendWhatsappBulkMsgs);
+// Get chat history
+router.get('/chat/:chatId/history', authenticateToken, getChatHistory);
 
+// Template management
+router.post('/templates', authenticateToken, createTemplate);
+router.get('/templates/:templateId', authenticateToken, getTemplate);
 
 module.exports = router;

@@ -15,7 +15,7 @@ const { processSpintax } = require('../utils/helpers'); // <-- Import the new he
 const csv = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
-const { validatePhoneNumber } = require('../middleware/validateRequest');
+const { validatePhoneNumber } = require('../utils/validators');
 
 class CampaignService {
     // Create a new campaign
@@ -37,17 +37,16 @@ class CampaignService {
             }
 
             // Process recipients based on type
-            if (campaignData.recipients.type === 'csv') {
-                await this.processCSVRecipients(campaignData.recipients.csvFile);
-            } else if (campaignData.recipients.type === 'numbers') {
-                this.validatePhoneNumbers(campaignData.recipients.numbers);
-            }
+            // Removed obsolete type checks for recipients.type
+
+            // Validate phone numbers
+            this.validatePhoneNumbers(campaignData.recipients);
 
             const campaign = new Campaign({
                 ...campaignData,
                 createdBy: userId,
                 stats: {
-                    total: this.getTotalRecipients(campaignData.recipients),
+                    total: Array.isArray(campaignData.recipients) ? campaignData.recipients.length : 0,
                     sent: 0,
                     delivered: 0,
                     read: 0,
@@ -97,7 +96,7 @@ class CampaignService {
 
     // Validate phone numbers
     validatePhoneNumbers(numbers) {
-        const invalidNumbers = numbers.filter(number => !this.validatePhoneNumber(number));
+        const invalidNumbers = numbers.filter(number => !validatePhoneNumber(number));
         if (invalidNumbers.length > 0) {
             throw new ApiError(400, `Invalid phone numbers found: ${invalidNumbers.join(', ')}`);
         }
@@ -105,21 +104,14 @@ class CampaignService {
 
     // Get total number of recipients
     getTotalRecipients(recipients) {
-        switch (recipients.type) {
-            case 'numbers':
-                return recipients.numbers.length;
-            case 'csv':
-                return recipients.csvFile.totalRows;
-            case 'group':
-            case 'channel':
-                return 1; // These will be expanded when sending
-            default:
-                return 0;
-        }
+        return Array.isArray(recipients) ? recipients.length : 0;
     }
 
     // Validate campaign data based on type
     validateCampaignData(data) {
+        if (!Array.isArray(data.recipients) || data.recipients.length === 0) {
+            throw new ApiError(400, 'Recipients are required and must be a non-empty array');
+        }
         switch (data.type) {
             case 'quick':
                 if (!data.message.text) {
