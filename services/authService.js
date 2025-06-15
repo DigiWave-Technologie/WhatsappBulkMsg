@@ -734,15 +734,29 @@ const getAllUsers = async (requesterId) => {
 
   const users = await User.find(query)
     .select('-password -sessions')
-    .populate('createdBy', 'firstName lastName email profilePicture');
+    .populate('createdBy', 'username'); // Only populate username
 
   // Get the base URL for profile pictures
   const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
-  return users.map(user => ({
-    ...user.toObject(),
-    profilePicture: user.profilePicture ? `${baseUrl}${user.profilePicture}` : null
-  }));
+  return users.map(user => {
+    const userObj = user.toObject();
+    return {
+      ...userObj,
+      profilePicture: user.profilePicture ? `${baseUrl}${user.profilePicture}` : null,
+      creator: user.createdBy ? {
+        id: user.createdBy._id,
+        username: user.createdBy.username
+        /* Commented out additional creator information
+        name: `${user.createdBy.firstName || ''} ${user.createdBy.lastName || ''}`.trim() || user.createdBy.username,
+        email: user.createdBy.email,
+        role: user.createdBy.role,
+        profilePicture: user.createdBy.profilePicture ? `${baseUrl}${user.createdBy.profilePicture}` : null
+        */
+      } : null,
+      createdBy: user.createdBy?._id || null // Keep the original createdBy ID for backward compatibility
+    };
+  });
 };
 
 // Logout service
