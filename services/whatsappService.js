@@ -20,6 +20,41 @@ class WhatsAppService {
         this.waapiKey = apiKey || 'dummy_api_key';
     }
 
+    // Get WhatsApp configuration by phone number
+    async getWhatsAppConfigByPhoneNumber(userId, phoneNumber) {
+        try {
+            const config = await WhatsAppConfig.findOne({
+                userId,
+                phoneNumber,
+                is_active: true
+            });
+
+            if (!config) {
+                throw new ApiError(404, `WhatsApp configuration not found for phone number: ${phoneNumber}`);
+            }
+
+            return config;
+        } catch (error) {
+            logger.error('Error fetching WhatsApp configuration:', error);
+            throw error;
+        }
+    }
+
+    // Get all active WhatsApp configurations for a user
+    async getAllWhatsAppConfigs(userId) {
+        try {
+            const configs = await WhatsAppConfig.find({
+                userId,
+                is_active: true
+            }).select('phoneNumber name description is_default');
+
+            return configs;
+        } catch (error) {
+            logger.error('Error fetching WhatsApp configurations:', error);
+            throw error;
+        }
+    }
+
     // Send message using Meta Cloud API
     async sendMetaMessage(to, message, phoneNumberId, accessToken) {
         try {
@@ -693,6 +728,154 @@ class WhatsAppService {
                 }
             }
             throw error;
+        }
+    }
+
+    // Send message using specific phone number configuration
+    async sendMessageWithPhoneNumber(userId, to, message, phoneNumber, category = 'virtual_credit') {
+        try {
+            // Get configuration for the specified phone number
+            const config = await this.getWhatsAppConfigByPhoneNumber(userId, phoneNumber);
+            if (!config) {
+                throw new Error('WhatsApp configuration not found for the specified phone number');
+            }
+
+            // Deduct credits
+            const creditDeduction = await this.deductCredits(userId, category);
+            if (!creditDeduction.success) {
+                throw new Error(creditDeduction.message);
+            }
+
+            // Build the payload for template message if type is template
+            let data = message;
+            if (message.type === 'template') {
+                data = {
+                    messaging_product: 'whatsapp',
+                    to: to,
+                    type: 'template',
+                    template: message.template
+                };
+            }
+
+            // Send message using Meta Cloud API
+            const url = `https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`;
+            const headers = {
+                'Authorization': `Bearer ${config.accessToken}`,
+                'Content-Type': 'application/json'
+            };
+            let response;
+            try {
+                response = await axios.post(url, data, { headers });
+            } catch (error) {
+                // Forward the error response from Facebook API
+                if (error.response) {
+                    throw new Error(JSON.stringify(error.response.data));
+                } else {
+                    throw error;
+                }
+            }
+
+            // Log the message
+            await MessageLog.create({
+                userId,
+                recipient: to,
+                messageType: message.type || 'template',
+                content: message.template?.name || message.text?.body || JSON.stringify(message),
+                status: 'sent',
+                messageId: response.data?.messages?.[0]?.id || null,
+                phoneNumber: config.phoneNumber,
+                category
+            });
+
+            return {
+                success: true,
+                data: response.data,
+                creditDeduction
+            };
+        } catch (error) {
+            logger.error('Error sending message:', error);
+            // Forward the error message
+            throw error;
+        }
+    }
+
+    // Send template message with specific phone number
+    async sendTemplateMessageWithPhoneNumber(userId, to, templateName, languageCode, components = [], phoneNumber) {
+        try {
+            const config = await this.getWhatsAppConfigByPhoneNumber(userId, phoneNumber);
+            if (!config) {
+                throw new Error('WhatsApp configuration not found for the specified phone number');
+            }
+
+            const message = {
+                type: 'template',
+                template: {
+                    name: templateName,
+                    language: {
+                        code: languageCode
+                    }
+                }
+            };
+
+            if (components && components.length > 0) {
+                message.template.components = components;
+            }
+
+            // Use the improved sendMessageWithPhoneNumber
+            return await this.sendMessageWithPhoneNumber(userId, to, message, phoneNumber);
+        } catch (error) {
+            logger.error('Error sending template message:', error);
+            throw error;
+        }
+    }
+
+    // Deduct credits for message sending
+    async deductCredits(userId, category) {
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
+
+            // Find the category by name first
+            const categoryDoc = await Category.findOne({ name: category });
+            if (!categoryDoc) {
+                throw new Error(`Category '${category}' not found`);
+            }
+
+            // Find credit by userId and categoryId
+            const credit = await Credit.findOne({ 
+                userId, 
+                categoryId: categoryDoc._id 
+            });
+            
+            if (!credit || credit.credit <= 0) {
+                throw new Error('Insufficient credits');
+            }
+
+            credit.credit -= 1;
+            await credit.save();
+
+            // Log credit transaction
+            await CreditTransaction.create({
+                fromUserId: userId,
+                toUserId: userId,
+                categoryId: categoryDoc._id,
+                creditType: 'debit',
+                credit: 1,
+                description: 'Message sent'
+            });
+
+            return {
+                success: true,
+                remainingCredits: credit.credit
+            };
+        } catch (error) {
+            logger.error('Error deducting credits:', error);
+            return {
+                success: false,
+                message: error.message
+            };
         }
     }
 }

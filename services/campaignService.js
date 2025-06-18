@@ -21,6 +21,8 @@ class CampaignService {
     // Create a new campaign
     async createCampaign(userId, campaignData) {
         try {
+            console.log('Creating campaign with userId:', userId); // Debug log
+            console.log('Campaign data:', campaignData); // Additional debug log
             // Validate campaign type specific data
             this.validateCampaignData(campaignData);
 
@@ -44,6 +46,7 @@ class CampaignService {
 
             const campaign = new Campaign({
                 ...campaignData,
+                userId: userId,
                 createdBy: userId,
                 stats: {
                     total: Array.isArray(campaignData.recipients) ? campaignData.recipients.length : 0,
@@ -54,7 +57,7 @@ class CampaignService {
                     responses: []
                 }
             });
-
+            console.log('Campaign object before saving:', campaign); // Additional debug log
             await campaign.save();
             return campaign;
         } catch (error) {
@@ -95,7 +98,9 @@ class CampaignService {
     }
 
     // Validate phone numbers
-    validatePhoneNumbers(numbers) {
+    validatePhoneNumbers(recipients) {
+        // If recipients are objects, extract phoneNumber
+        const numbers = recipients.map(r => typeof r === 'string' ? r : r.phoneNumber);
         const invalidNumbers = numbers.filter(number => !validatePhoneNumber(number));
         if (invalidNumbers.length > 0) {
             throw new ApiError(400, `Invalid phone numbers found: ${invalidNumbers.join(', ')}`);

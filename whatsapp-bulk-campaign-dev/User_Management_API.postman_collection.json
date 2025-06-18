@@ -116,6 +116,102 @@
 						},
 						"description": "Login as Reseller to get JWT token"
 					}
+				},
+				{
+					"name": "Login - User1 (Virtual Only)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('User1 login successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.true;",
+									"    pm.environment.set('user1_token', jsonData.data.token);",
+									"});",
+									"",
+									"pm.test('User1 has virtual permission only', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var permissions = jsonData.data.user.permissions;",
+									"    pm.expect(permissions.virtual).to.be.true;",
+									"    pm.expect(permissions.personal).to.be.false;",
+									"    pm.expect(permissions.internationalPersonal).to.be.false;",
+									"    pm.expect(permissions.internationalVirtual).to.be.false;",
+									"    console.log('✅ User1 permissions: Virtual only');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"user1\",\n    \"password\": \"TestUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as User1 (virtual permission only) and validate permissions"
+					}
+				},
+				{
+					"name": "Login - User2 (Personal Only)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('User2 login successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.true;",
+									"    pm.environment.set('user2_token', jsonData.data.token);",
+									"});",
+									"",
+									"pm.test('User2 has personal permission only', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var permissions = jsonData.data.user.permissions;",
+									"    pm.expect(permissions.virtual).to.be.false;",
+									"    pm.expect(permissions.personal).to.be.true;",
+									"    pm.expect(permissions.internationalPersonal).to.be.false;",
+									"    pm.expect(permissions.internationalVirtual).to.be.false;",
+									"    console.log('✅ User2 permissions: Personal only');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"user2\",\n    \"password\": \"TestUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as User2 (personal permission only) and validate permissions"
+					}
 				}
 			]
 		},
@@ -124,6 +220,111 @@
 			"item": [
 				{
 					"name": "Get All Users (Super Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData.success).to.be.true;",
+									"});",
+									"",
+									"pm.test('Response contains users array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"    pm.expect(jsonData.data.length).to.be.greaterThan(0);",
+									"});",
+									"",
+									"pm.test('Users have UI permissions structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var users = jsonData.data;",
+									"    ",
+									"    users.forEach(function(user) {",
+									"        pm.expect(user).to.have.property('permissions');",
+									"        pm.expect(user.permissions).to.have.property('virtual');",
+									"        pm.expect(user.permissions).to.have.property('personal');",
+									"        pm.expect(user.permissions).to.have.property('internationalPersonal');",
+									"        pm.expect(user.permissions).to.have.property('internationalVirtual');",
+									"        ",
+									"        // Check that permissions are boolean",
+									"        pm.expect(user.permissions.virtual).to.be.a('boolean');",
+									"        pm.expect(user.permissions.personal).to.be.a('boolean');",
+									"        pm.expect(user.permissions.internationalPersonal).to.be.a('boolean');",
+									"        pm.expect(user.permissions.internationalVirtual).to.be.a('boolean');",
+									"    });",
+									"});",
+									"",
+									"pm.test('Validate specific test user permissions', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var users = jsonData.data;",
+									"    ",
+									"    // Find superadmin1",
+									"    var superAdmin = users.find(u => u.username === 'superadmin1');",
+									"    if (superAdmin) {",
+									"        pm.expect(superAdmin.permissions.virtual).to.be.true;",
+									"        pm.expect(superAdmin.permissions.personal).to.be.true;",
+									"        pm.expect(superAdmin.permissions.internationalPersonal).to.be.true;",
+									"        pm.expect(superAdmin.permissions.internationalVirtual).to.be.true;",
+									"        console.log('✅ SuperAdmin permissions validated');",
+									"    }",
+									"    ",
+									"    // Find admin1",
+									"    var admin = users.find(u => u.username === 'admin1');",
+									"    if (admin) {",
+									"        pm.expect(admin.permissions.virtual).to.be.true;",
+									"        pm.expect(admin.permissions.personal).to.be.true;",
+									"        pm.expect(admin.permissions.internationalPersonal).to.be.true;",
+									"        pm.expect(admin.permissions.internationalVirtual).to.be.false;",
+									"        console.log('✅ Admin permissions validated');",
+									"    }",
+									"    ",
+									"    // Find user1 (virtual only)",
+									"    var user1 = users.find(u => u.username === 'user1');",
+									"    if (user1) {",
+									"        pm.expect(user1.permissions.virtual).to.be.true;",
+									"        pm.expect(user1.permissions.personal).to.be.false;",
+									"        pm.expect(user1.permissions.internationalPersonal).to.be.false;",
+									"        pm.expect(user1.permissions.internationalVirtual).to.be.false;",
+									"        console.log('✅ User1 (virtual only) permissions validated');",
+									"    }",
+									"    ",
+									"    // Find user2 (personal only)",
+									"    var user2 = users.find(u => u.username === 'user2');",
+									"    if (user2) {",
+									"        pm.expect(user2.permissions.virtual).to.be.false;",
+									"        pm.expect(user2.permissions.personal).to.be.true;",
+									"        pm.expect(user2.permissions.internationalPersonal).to.be.false;",
+									"        pm.expect(user2.permissions.internationalVirtual).to.be.false;",
+									"        console.log('✅ User2 (personal only) permissions validated');",
+									"    }",
+									"});",
+									"",
+									"pm.test('Store user IDs for further testing', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var users = jsonData.data;",
+									"    ",
+									"    var user1 = users.find(u => u.username === 'user1');",
+									"    if (user1) {",
+									"        pm.environment.set('user1_id', user1._id);",
+									"    }",
+									"    ",
+									"    var user2 = users.find(u => u.username === 'user2');",
+									"    if (user2) {",
+									"        pm.environment.set('user2_id', user2._id);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "GET",
 						"header": [
@@ -138,11 +339,45 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "auth", "users"]
 						},
-						"description": "Get all users (Super Admin can see all users)"
+						"description": "Get all users (Super Admin can see all users) with comprehensive UI permission validation"
 					}
 				},
 				{
 					"name": "Get All Users (Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Admin can access users endpoint', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Admin sees filtered user list', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.true;",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"    ",
+									"    // Admin should see users they created + resellers + users",
+									"    // but not other admins or super admins (unless they created them)",
+									"    console.log('Admin can see ' + jsonData.data.length + ' users');",
+									"});",
+									"",
+									"pm.test('All visible users have permissions', function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.data.forEach(function(user) {",
+									"        pm.expect(user).to.have.property('permissions');",
+									"        pm.expect(user.permissions).to.have.property('virtual');",
+									"        pm.expect(user.permissions).to.have.property('personal');",
+									"        pm.expect(user.permissions).to.have.property('internationalPersonal');",
+									"        pm.expect(user.permissions).to.have.property('internationalVirtual');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "GET",
 						"header": [
@@ -162,6 +397,44 @@
 				},
 				{
 					"name": "Get All Users (Reseller)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Reseller can access users endpoint', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reseller sees limited user list', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.true;",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"    ",
+									"    // Reseller should only see users they created",
+									"    console.log('Reseller can see ' + jsonData.data.length + ' users');",
+									"    ",
+									"    // All visible users should be 'user' role or created by this reseller",
+									"    jsonData.data.forEach(function(user) {",
+									"        console.log('Visible user: ' + user.username + ' (' + user.role + ')');",
+									"    });",
+									"});",
+									"",
+									"pm.test('All visible users have permissions', function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.data.forEach(function(user) {",
+									"        pm.expect(user).to.have.property('permissions');",
+									"        pm.expect(user.permissions).to.have.property('virtual');",
+									"        pm.expect(user.permissions).to.have.property('personal');",
+									"        pm.expect(user.permissions).to.have.property('internationalPersonal');",
+									"        pm.expect(user.permissions).to.have.property('internationalVirtual');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "GET",
 						"header": [
@@ -177,6 +450,45 @@
 							"path": ["api", "auth", "users"]
 						},
 						"description": "Get users (Reseller can only see users they created)"
+					}
+				},
+				{
+					"name": "Get All Users (User Role - Should Fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('User role cannot access users endpoint', function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test('Error message indicates unauthorized access', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.false;",
+									"    pm.expect(jsonData.message).to.include('Not authorized');",
+									"    console.log('✅ User role correctly denied access to users endpoint');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user1_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						},
+						"description": "Test that User role cannot access GET users endpoint (should return 403)"
 					}
 				},
 				{

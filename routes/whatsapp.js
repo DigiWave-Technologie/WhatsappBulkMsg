@@ -7,11 +7,10 @@ const { authenticateToken } = require('../middleware/auth');
 router.use(authenticateToken);
 
 // WhatsApp Configuration Routes
+router.get('/configs', whatsappController.getWhatsAppConfigs);
 router.post('/configure', whatsappController.configureWhatsApp);
-router.get('/config', whatsappController.getWhatsAppConfig);
 router.put('/config', whatsappController.updateWhatsAppConfig);
-router.delete('/config', whatsappController.deleteWhatsAppConfig);
-router.get('/configs', whatsappController.getAllWhatsAppConfigs);
+router.delete('/config/:phoneNumber', whatsappController.deleteWhatsAppConfig);
 
 // WhatsApp Message Routes
 router.post('/send', whatsappController.sendMessage);
@@ -20,4 +19,4 @@ router.post('/send', whatsappController.sendMessage);
 router.get('/templates', whatsappController.getTemplates);
 router.post('/templates', whatsappController.createTemplate);
 
-module.exports = router; 
+module.exports = router;

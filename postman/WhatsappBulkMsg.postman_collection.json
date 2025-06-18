@@ -1,0 +1,128 @@
+{
+  "info": {
+    "_postman_id": "whatsapp-bulkmsg-collection",
+    "name": "WhatsappBulkMsg Full Flow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login (Super Admin)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{superadmin_username}}\",\n  \"password\": \"{{superadmin_password}}\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200 && pm.response.json().data && pm.response.json().data.token) {",
+              "    pm.environment.set('token', pm.response.json().data.token);",
+              "    pm.environment.set('user_id', pm.response.json().data.user.id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Configure WhatsApp",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phoneNumber\": \"{{phone_number}}\",\n  \"whatsappBusinessAccountId\": \"480243005165232\",\n  \"phoneNumberId\": \"441959912339170\",\n  \"accessToken\": \"<YOUR_ACCESS_TOKEN>\",\n  \"name\": \"Test WhatsApp Config\",\n  \"description\": \"Test configuration for WhatsApp messaging\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/whatsapp/configure", "host": ["{{base_url}}"], "path": ["api", "whatsapp", "configure"] }
+      }
+    },
+    {
+      "name": "Get WhatsApp Configs",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{base_url}}/api/whatsapp/configs", "host": ["{{base_url}}"], "path": ["api", "whatsapp", "configs"] }
+      }
+    },
+    {
+      "name": "Create Category",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Marketing\",\n  \"description\": \"Marketing related templates\",\n  \"type\": \"marketing\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/whatsapp-official/categories", "host": ["{{base_url}}"], "path": ["api", "whatsapp-official", "categories"] }
+      }
+    },
+    {
+      "name": "Get All Categories",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{base_url}}/api/whatsapp-official/categories", "host": ["{{base_url}}"], "path": ["api", "whatsapp-official", "categories"] }
+      }
+    },
+    {
+      "name": "Create Template",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"template_name\": \"{{template_name}}\",\n  \"category\": \"<CATEGORY_ID_FROM_GET_ALL_CATEGORIES>\",\n  \"language\": \"en\",\n  \"template_type\": \"basic\",\n  \"enable_click_tracking\": true,\n  \"header\": {\"type\": \"text\", \"text\": \"Welcome to Our Service!\"},\n  \"body\": \"Hello {{1}}, welcome to our service!\",\n  \"footer_text\": \"Reply STOP to unsubscribe\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/whatsapp-official/templates", "host": ["{{base_url}}"], "path": ["api", "whatsapp-official", "templates"] }
+      }
+    },
+    {
+      "name": "Get All Templates",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{base_url}}/api/whatsapp-official/templates", "host": ["{{base_url}}"], "path": ["api", "whatsapp-official", "templates"] }
+      }
+    },
+    {
+      "name": "Send Template Message",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"to\": \"{{recipient_number}}\",\n  \"templateName\": \"{{template_name}}\",\n  \"languageCode\": \"{{language_code}}\",\n  \"category\": \"{{category}}\",\n  \"phoneNumber\": \"{{phone_number}}\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/whatsapp/send", "host": ["{{base_url}}"], "path": ["api", "whatsapp", "send"] }
+      }
+    }
+  ],
+  "event": []
+} 

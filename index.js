@@ -57,6 +57,11 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const whatsappWebhook = require('./webhooks/whatsapp');
 const whatsappRoutes = require('./routes/whatsapp');
 
+// Import new routes
+const whatsAppOfficialTemplateRoutes = require('./routes/whatsAppOfficialTemplateRoutes');
+const whatsAppOfficialCategoryRoutes = require('./routes/whatsAppOfficialCategoryRoutes');
+const userTriggerRoutes = require('./routes/userTriggerRoutes');
+
 // Serve static files from the uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -86,6 +91,11 @@ const startServer = async () => {
     app.use('/api', apiRoutes);
     app.use('/webhook/whatsapp', whatsappWebhook);
     app.use('/api/whatsapp', whatsappRoutes);
+
+    // Mount new routes
+    app.use('/api/whatsapp-official/templates', whatsAppOfficialTemplateRoutes);
+    app.use('/api/whatsapp-official/categories', whatsAppOfficialCategoryRoutes);
+    app.use('/api/user-triggers', userTriggerRoutes);
 
     // Error handling middleware
     app.use(errorHandler);

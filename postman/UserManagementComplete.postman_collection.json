@@ -1,0 +1,928 @@
+{
+	"info": {
+		"_postman_id": "user-mgmt-complete-2024",
+		"name": "User Management Complete Test Suite",
+		"description": "Comprehensive test suite for all user management features with all roles",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Authentication Tests",
+			"item": [
+				{
+					"name": "Login Super Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('superadmin_token', jsonData.token);",
+									"    pm.environment.set('superadmin_id', jsonData.user.userId);",
+									"    pm.test('Super Admin login successful', function () {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"    });",
+									"} else {",
+									"    pm.test('Super Admin login failed', function () {",
+									"        pm.expect.fail('Login should succeed');",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"superadmin1\",\n    \"password\": \"SuperAdmin@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Login Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('admin_token', jsonData.token);",
+									"    pm.environment.set('admin_id', jsonData.user.userId);",
+									"    pm.test('Admin login successful', function () {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin1\",\n    \"password\": \"AdminUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Login Reseller",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('reseller_token', jsonData.token);",
+									"    pm.environment.set('reseller_id', jsonData.user.userId);",
+									"    pm.test('Reseller login successful', function () {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"reseller1\",\n    \"password\": \"Reseller@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"    pm.environment.set('user_id', jsonData.user.userId);",
+									"    pm.test('User login successful', function () {",
+									"        pm.expect(jsonData.success).to.be.true;",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"user1\",\n    \"password\": \"TestUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. User Creation Tests",
+			"item": [
+				{
+					"name": "Super Admin Creates Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Super Admin can create Admin', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('created_admin_id', jsonData.data.data.userId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"test_admin_by_superadmin\",\n    \"password\": \"TestAdmin@123\",\n    \"email\": \"test_admin_sa@test.com\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"Admin\",\n    \"role\": \"admin\",\n    \"permissions\": \"{\\\"virtual\\\": true, \\\"personal\\\": true, \\\"internationalPersonal\\\": false, \\\"internationalVirtual\\\": false}\",\n    \"rolePermissions\": \"{\\\"canCreateUsers\\\": true, \\\"canUpdateUsers\\\": true, \\\"canDeleteUsers\\\": false, \\\"canViewAllUsers\\\": true}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/createUser",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "createUser"]
+						}
+					}
+				},
+				{
+					"name": "Admin Creates Reseller",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Admin can create Reseller', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('created_reseller_id', jsonData.data.data.userId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"test_reseller_by_admin\",\n    \"password\": \"TestReseller@123\",\n    \"email\": \"test_reseller_admin@test.com\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"Reseller\",\n    \"role\": \"reseller\",\n    \"permissions\": \"{\\\"virtual\\\": true, \\\"personal\\\": false, \\\"internationalPersonal\\\": false, \\\"internationalVirtual\\\": false}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/createUser",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "createUser"]
+						}
+					}
+				},
+				{
+					"name": "Reseller Creates User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Reseller can create User', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('created_user_id', jsonData.data.data.userId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{reseller_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"test_user_by_reseller\",\n    \"password\": \"TestUser@123\",\n    \"email\": \"test_user_reseller@test.com\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\",\n    \"role\": \"user\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/createUser",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "createUser"]
+						}
+					}
+				},
+				{
+					"name": "User Tries to Create User (Should Fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('User cannot create other users', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([403, 401]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"test_user_by_user\",\n    \"password\": \"TestUser@123\",\n    \"email\": \"test_user_user@test.com\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\",\n    \"role\": \"user\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/createUser",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "createUser"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Get Users Tests",
+			"item": [
+				{
+					"name": "Super Admin Gets All Users",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Super Admin can view all users', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test('Response contains users array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.users).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						}
+					}
+				},
+				{
+					"name": "Admin Gets Users",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Admin can view users', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						}
+					}
+				},
+				{
+					"name": "Reseller Gets Users",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Reseller response', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 403]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{reseller_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						}
+					}
+				},
+				{
+					"name": "User Gets Users",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('User response', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 403]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "users"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Security Features Tests",
+			"item": [
+				{
+					"name": "Super Admin Locks User Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Account locked successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/lock-account/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "lock-account", "{{user_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Test Login with Locked Account (Should Fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Locked account cannot login', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([403, 401]);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"user1\",\n    \"password\": \"TestUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Super Admin Unlocks User Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Account unlocked successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/unlock-account/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "unlock-account", "{{user_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Security Logs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Security logs retrieved', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/security-logs",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "security-logs"]
+						}
+					}
+				},
+				{
+					"name": "Get Security Audit for User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Security audit retrieved', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/security-audit/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "security-audit", "{{user_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Active Sessions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Active sessions retrieved', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/active-sessions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "active-sessions"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. API Key Management Tests",
+			"item": [
+				{
+					"name": "Super Admin Generates API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('API key generated successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('superadmin_api_key', jsonData.apiKey);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/generate-api-key",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "generate-api-key"]
+						}
+					}
+				},
+				{
+					"name": "Admin Generates API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('API key generated successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('admin_api_key', jsonData.apiKey);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/generate-api-key",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "generate-api-key"]
+						}
+					}
+				},
+				{
+					"name": "User Generates API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('API key generated successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('user_api_key', jsonData.apiKey);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/generate-api-key",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "generate-api-key"]
+						}
+					}
+				},
+				{
+					"name": "Super Admin Revokes API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('API key revoked successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/revoke-api-key",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "revoke-api-key"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Password Management Tests",
+			"item": [
+				{
+					"name": "User Changes Own Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Password changed successfully', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"currentPassword\": \"TestUser@123\",\n    \"newPassword\": \"NewTestUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/change-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "change-password"]
+						}
+					}
+				},
+				{
+					"name": "Test Login with New Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Login successful with new password', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('user_token', jsonData.token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"user1\",\n    \"password\": \"NewTestUser@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Super Admin Forces Password Reset",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Force password reset successful', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/force-password-reset/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "force-password-reset", "{{user_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Admin Changes User Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Admin password change successful', function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{superadmin_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"currentPassword\": \"NewTestUser@123\",\n    \"newPassword\": \"AdminChangedPassword@123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/admin/change-user-password/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "admin", "change-user-password", "{{user_id}}"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000"
+		}
+	]
+}
