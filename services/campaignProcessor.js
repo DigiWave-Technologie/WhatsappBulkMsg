@@ -42,6 +42,12 @@ class CampaignProcessor {
                 throw new ApiError(404, 'Campaign not found');
             }
 
+            // WhatsApp Official campaign type (add your type as needed)
+            if (campaign.type === 'WHATSAPP_OFFICIAL') {
+                await this.processWhatsAppOfficialCampaign(campaign);
+                return { success: true, message: 'WhatsApp Official campaign processed successfully' };
+            }
+
             // Find category that has this campaign
             const category = await Category.findOne({
                 'campaignTypes.campaignIds': campaign._id,
@@ -467,6 +473,50 @@ class CampaignProcessor {
         } catch (error) {
             throw error;
         }
+    }
+
+    async processWhatsAppOfficialCampaign(campaign) {
+        const { recipients, batchSize = 1000, intervalTime = 5, schedule, templateId, messageLimit } = campaign;
+        const totalRecipients = recipients.length;
+        let batches = [];
+        // Split recipients into batches
+        for (let i = 0; i < totalRecipients; i += batchSize) {
+            batches.push(recipients.slice(i, i + batchSize));
+        }
+        // Helper to send a batch
+        const sendBatch = async (batch) => {
+            const numbers = batch.map(r => r.phoneNumber);
+            // Use waMessageService to send messages (adjust as needed for template)
+            const results = await require('./waMessageService').sendWhatsAppMessages(
+                { campaignTitle: campaign.name, userMessage: campaign.message?.text },
+                numbers,
+                campaign.metaApiData?.phoneNumberId // or other instance ID as needed
+            );
+            // Update recipient statuses
+            for (let i = 0; i < batch.length; i++) {
+                const phone = batch[i].phoneNumber;
+                if (results[i]) {
+                    await campaign.updateRecipientStatus(phone, 'sent', { wamid: results[i].id });
+                } else {
+                    await campaign.updateRecipientStatus(phone, 'failed', { errorMessage: 'Send failed' });
+                }
+            }
+        };
+        // If scheduled, wait until schedule.startAt
+        const now = new Date();
+        let startTime = schedule?.startAt ? new Date(schedule.startAt) : now;
+        if (startTime > now) {
+            await new Promise(resolve => setTimeout(resolve, startTime - now));
+        }
+        // Send batches with interval
+        for (let b = 0; b < batches.length; b++) {
+            await sendBatch(batches[b]);
+            if (b < batches.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, intervalTime * 60 * 1000));
+            }
+        }
+        campaign.status = 'completed';
+        await campaign.save();
     }
 }
 

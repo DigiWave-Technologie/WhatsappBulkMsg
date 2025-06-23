@@ -52,7 +52,8 @@ const campaignSchema = new mongoose.Schema({
             'INTERNATIONAL_PERSONAL_BUTTON',
             'INTERNATIONAL_PERSONAL_POLL',
             'INTERNATIONAL_VIRTUAL_QUICK',
-            'INTERNATIONAL_VIRTUAL_BUTTON'
+            'INTERNATIONAL_VIRTUAL_BUTTON',
+            'WHATSAPP_OFFICIAL'
         ],
         required: true
     },
@@ -270,6 +271,31 @@ const campaignSchema = new mongoose.Schema({
                 }
             }]
         }]
+    },
+    // WhatsApp Official Campaign Fields
+    sendType: {
+        type: String,
+        enum: ['csv', 'manual'],
+        default: 'csv',
+        description: 'How recipients are provided: csv upload or manual textarea input.'
+    },
+    countries: [{
+        type: String,
+        description: 'Country codes for multi-country campaigns.'
+    }],
+    messageLimit: {
+        type: Number,
+        description: 'Message limit provided by Facebook.'
+    },
+    batchSize: {
+        type: Number,
+        default: 1000,
+        description: 'Batch size for split campaign.'
+    },
+    intervalTime: {
+        type: Number,
+        enum: [5, 10, 15, 30, 45, 60],
+        description: 'Interval time in minutes between batches.'
     }
 }, {
     timestamps: true

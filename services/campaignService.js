@@ -16,6 +16,7 @@ const csv = require('csv-parse');
 const fs = require('fs');
 const path = require('path');
 const { validatePhoneNumber } = require('../utils/validators');
+const mongoose = require('mongoose');
 
 class CampaignService {
     // Create a new campaign
@@ -38,18 +39,39 @@ class CampaignService {
                 }
             }
 
-            // Process recipients based on type
-            // Removed obsolete type checks for recipients.type
+            // WhatsApp Official Campaign: handle recipients from manual input or CSV
+            let recipients = [];
+            if (campaignData.sendType === 'manual') {
+                // Accept recipients as an array of phone numbers from textarea input or as objects
+                recipients = (campaignData.recipients || []).map(r =>
+                    typeof r === 'string' ? { phoneNumber: r } : r
+                );
+            } else if (campaignData.sendType === 'csv') {
+                // Accept recipients as array of objects (from CSV upload)
+                recipients = (campaignData.recipients || []).map(r => typeof r === 'string' ? { phoneNumber: r } : r);
+            } else {
+                throw new ApiError(400, 'Invalid sendType. Must be "csv" or "manual".');
+            }
+
+            // Remove duplicate phone numbers
+            recipients = recipients.filter((r, i, arr) => arr.findIndex(x => x.phoneNumber === r.phoneNumber) === i);
 
             // Validate phone numbers
-            this.validatePhoneNumbers(campaignData.recipients);
+            this.validatePhoneNumbers(recipients);
 
+            // Build campaign object with new fields
             const campaign = new Campaign({
                 ...campaignData,
+                recipients,
                 userId: userId,
                 createdBy: userId,
+                sendType: campaignData.sendType,
+                countries: campaignData.countries,
+                messageLimit: campaignData.messageLimit,
+                batchSize: campaignData.batchSize,
+                intervalTime: campaignData.intervalTime,
                 stats: {
-                    total: Array.isArray(campaignData.recipients) ? campaignData.recipients.length : 0,
+                    total: recipients.length,
                     sent: 0,
                     delivered: 0,
                     read: 0,
@@ -100,7 +122,11 @@ class CampaignService {
     // Validate phone numbers
     validatePhoneNumbers(recipients) {
         // If recipients are objects, extract phoneNumber
-        const numbers = recipients.map(r => typeof r === 'string' ? r : r.phoneNumber);
+        const numbers = recipients.map(r => {
+            if (typeof r === 'string') return r;
+            if (r && typeof r.phoneNumber === 'string') return r.phoneNumber;
+            throw new ApiError(400, 'Each recipient must have a phoneNumber property');
+        });
         const invalidNumbers = numbers.filter(number => !validatePhoneNumber(number));
         if (invalidNumbers.length > 0) {
             throw new ApiError(400, `Invalid phone numbers found: ${invalidNumbers.join(', ')}`);
@@ -149,9 +175,11 @@ class CampaignService {
 
     // Get campaign by ID
     async getCampaignById(userId, campaignId) {
-        const campaign = await Campaign.findOne({ _id: campaignId, userId })
-            .populate('templateId', 'name content')
-            .populate('groupId', 'name');
+        // Ensure userId is an ObjectId for comparison
+        const userObjectId = typeof userId === 'string' ? mongoose.Types.ObjectId(userId) : userId;
+        console.log('Looking for campaign:', { _id: campaignId, userId: userObjectId });
+        const campaign = await Campaign.findOne({ _id: campaignId, userId: userObjectId })
+            .populate('templateId', 'name content');
 
         if (!campaign) {
             throw new Error('Campaign not found');

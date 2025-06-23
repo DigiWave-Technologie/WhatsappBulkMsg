@@ -8,7 +8,7 @@ const connectDB = async () => {
       family: 4 // Force IPv4
     });
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`MongoDB Connected from mongodb.js: ${conn.connection.host}`);
 
     // Handle connection errors after initial connection
     mongoose.connection.on('error', (err) => {

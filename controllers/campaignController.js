@@ -22,8 +22,9 @@ const setDefaultUserProfile = async (numbers, instance) => {
 
 // Create campaign
 const createCampaign = asyncHandler(async (req, res) => {
+    console.log('req.user:', req.user); // Debug log to check logged-in user
     console.log('Received campaign data:', req.body);
-    const campaign = await campaignService.createCampaign(req.user._id, req.body);
+    const campaign = await campaignService.createCampaign(req.user.userId, req.body);
     res.status(201).json({
         success: true,
         message: 'Campaign created successfully',
@@ -93,11 +94,13 @@ const deleteCampaign = asyncHandler(async (req, res) => {
 
 // Start campaign
 const startCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    console.log('startCampaign req.params:', req.params);
+    console.log('startCampaign req.user:', req.user);
+    const campaignId = req.params.id;
+    const userId = req.user.userId;
 
     // Verify campaign ownership
-    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    const campaign = await campaignService.getCampaignById(userId, campaignId);
     if (!campaign) {
         throw new ApiError(404, 'Campaign not found');
     }

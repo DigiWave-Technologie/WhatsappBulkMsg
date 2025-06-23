@@ -131,12 +131,18 @@ const validateCampaign = async (req, res, next) => {
       throw new Error('Recipients are required and must be an array');
     }
 
-    // Validate phone numbers
+    // Validate phone numbers (support both string and object)
     recipients.forEach(recipient => {
-      if (!recipient.phoneNumber) {
+      let phone = null;
+      if (typeof recipient === 'string') {
+        phone = recipient;
+      } else if (recipient && typeof recipient.phoneNumber === 'string') {
+        phone = recipient.phoneNumber;
+      }
+      if (!phone) {
         throw new Error('Phone number is required for each recipient');
       }
-      validatePhoneNumber(recipient.phoneNumber);
+      validatePhoneNumber(phone);
     });
 
     // Validate schedule
