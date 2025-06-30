@@ -44,6 +44,10 @@ const userSchema = new mongoose.Schema({
     password: String,
     changedAt: Date
   }],
+  subUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   securityLog: [{
     action: {
       type: String,

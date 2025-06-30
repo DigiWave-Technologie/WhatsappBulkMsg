@@ -13,7 +13,7 @@ const fs = require('fs');
 const userLogin = async ({ username, password }, deviceInfo) => {
   try {
     // Find user by username
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username }).populate('createdBy', 'username');
     
     if (!user) {
       throw new Error('Invalid username or password');
@@ -126,6 +126,7 @@ const userLogin = async ({ username, password }, deviceInfo) => {
     return {
       token,
       user: {
+        createdBy: user.createdBy ? { id: user.createdBy._id, username: user.createdBy.username } : null,
         id: user._id,
         username: user.username,
         email: user.email,
@@ -174,7 +175,8 @@ const unblockUser = async (userId, adminId) => {
     user.auditLog.push({
       action: 'account_unblocked',
       details: {
-        unblocked_by: adminId
+        unblocked_by: adminId,
+        systemInitiated: true
       }
     });
 
@@ -733,9 +735,9 @@ const getAllUsers = async (requesterId) => {
   }
 
   const users = await User.find(query)
-    .select('-password -sessions')
-    .populate('createdBy', 'username'); // Only populate username
-
+      .select('-password -sessions')
+      .populate('createdBy', 'username')
+    
   // Get the base URL for profile pictures
   const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
@@ -744,17 +746,7 @@ const getAllUsers = async (requesterId) => {
     return {
       ...userObj,
       profilePicture: user.profilePicture ? `${baseUrl}${user.profilePicture}` : null,
-      creator: user.createdBy ? {
-        id: user.createdBy._id,
-        username: user.createdBy.username
-        /* Commented out additional creator information
-        name: `${user.createdBy.firstName || ''} ${user.createdBy.lastName || ''}`.trim() || user.createdBy.username,
-        email: user.createdBy.email,
-        role: user.createdBy.role,
-        profilePicture: user.createdBy.profilePicture ? `${baseUrl}${user.createdBy.profilePicture}` : null
-        */
-      } : null,
-      createdBy: user.createdBy?._id || null // Keep the original createdBy ID for backward compatibility
+      createdBy: user.createdBy ? { id: user.createdBy._id, username: user.createdBy.username } : null // Keep the original createdBy ID for backward compatibility
     };
   });
 };
