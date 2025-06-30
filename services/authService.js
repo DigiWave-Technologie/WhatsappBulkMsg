@@ -138,7 +138,14 @@ const userLogin = async ({ username, password }, deviceInfo) => {
         lastLogin: user.lastSuccessfulLogin,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        permissions: getUserPermissions(user.role),
+        permissions: {
+          ...user.isSuperAdmin ? getUserPermissions('super_admin') : getUserPermissions(user.role),
+          virtual: user.permissions.virtual,
+          personal: user.permissions.personal,
+          internationalPersonal: user.permissions.internationalPersonal,
+          internationalVirtual: user.permissions.internationalVirtual,
+        },
+        isSuperAdmin: user.isSuperAdmin,
         apiKey: user.apiKey ? '********' + user.apiKey.slice(-4) : null,
         branding: user.branding,
         whatsappNumbers: user.whatsappNumbers,
@@ -411,6 +418,11 @@ const updateUser = async ({ id, ...updateData }, updaterId) => {
     const updater = await User.findById(updaterId);
     if (!updater) {
       throw new Error('Updater not found');
+    }
+
+    // Prevent super admin role from being changed
+    if (user.role === 'super_admin' && updateData.role && updateData.role !== 'super_admin') {
+      throw new Error('Super admin role cannot be changed.');
     }
 
     // Validate role hierarchy for updates

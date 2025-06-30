@@ -53,6 +53,7 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['login', 'logout', 'password_change', 'failed_login', 'password_reset', 'account_locked', 'account_unlocked']
     },
+  isSuperAdmin: { type: Boolean, default: false },
     timestamp: {
       type: Date,
       default: Date.now
@@ -350,6 +351,29 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
+  if (this.isNew && this.role === 'super_admin') {
+    this.isSuperAdmin = true;
+  }
+
+  if (this.isModified('role') && this.role === 'super_admin' && !this.isNew) {
+    return next(new Error('Super admin role cannot be changed after creation.'));
+  }
+
+  if (this.isSuperAdmin) {
+    // Ensure all permissions are true for super_admin
+    const allPermissions = [
+      'canCreateUsers', 'canUpdateUsers', 'canDeleteUsers', 'canViewAllUsers',
+      'canManageAdmins', 'canManageResellers', 'canManageUsers', 'canViewAnalytics',
+      'canManageSettings', 'canManagePricingPlans', 'canViewSystemStats',
+      'canManageAllCampaigns', 'canManageAllReports', 'canManageAllGroups',
+      'canManageAllTemplates', 'canManageAllCredits'
+    ];
+    allPermissions.forEach(perm => {
+      if (this.rolePermissions && typeof this.rolePermissions[perm] !== 'undefined') {
+        this.rolePermissions[perm] = true;
+      }
+    });
+  }
   if (!this.isModified('password')) return next();
   
   try {
