@@ -2,35 +2,53 @@ const User = require('../models/User');
 
 // Define role-based permissions
 const rolePermissions = {
-    super_admin: [
-        'manage_users',
-        'manage_credits',
-        'manage_templates',
-        'approve_templates',
-        'manage_campaigns',
-        'view_analytics',
-        'manage_api_keys',
-        'manage_settings'
-    ],
-    admin: [
-        'manage_users',
-        'manage_credits',
-        'manage_templates',
-        'approve_templates',
-        'manage_campaigns',
-        'view_analytics'
-    ],
-    reseller: [
-        'manage_credits',
-        'manage_templates',
-        'manage_campaigns',
-        'view_analytics'
-    ],
-    user: [
-        'manage_templates',
-        'manage_campaigns',
-        'view_analytics'
-    ]
+  super_admin: [
+    'manage_credits',
+    'can_add_credits',
+    'can_debit_credits',
+    'can_manage_sub_user_credits',
+    'manage_users',
+    'manage_roles',
+    'view_reports',
+    'manage_settings',
+    'manage_campaigns',
+    'manage_templates',
+    'manage_groups',
+    'manage_categories',
+    'manage_api_keys',
+    'view_analytics',
+    'manage_pricing_plans',
+    'view_system_stats'
+  ],
+  admin: [
+    'manage_credits',
+    'can_add_credits',
+    'can_debit_credits',
+    'can_manage_sub_user_credits',
+    'manage_users',
+    'view_reports',
+    'manage_campaigns',
+    'manage_templates',
+    'manage_groups',
+    'manage_categories',
+    'view_analytics'
+  ],
+  reseller: [
+    'manage_users',
+    'view_reports',
+    'manage_campaigns',
+    'manage_templates',
+    'manage_groups',
+    'manage_categories',
+    'view_analytics'
+  ],
+  user: [
+    'view_reports',
+    'manage_campaigns',
+    'manage_templates',
+    'manage_groups',
+    'view_analytics'
+  ]
 };
 
 // Middleware to check if user has required permission
@@ -167,4 +185,4 @@ module.exports = {
     checkAnyPermission,
     checkAllPermissions,
     rolePermissions
-}; 
+};

@@ -30,14 +30,29 @@ const recipientSchema = new mongoose.Schema({
 }, { _id: false });
 
 const campaignSchema = new mongoose.Schema({
-    name: {
+    campaign_title: {
         type: String,
         required: true,
         trim: true
     },
-    description: {
+    message: {
         type: String,
         trim: true
+    },
+    numbers: {
+        type: [String] // Assuming numbers are an array of strings
+    },
+    media_url: {
+        type: String // Assuming media_url is a single string URL
+    },
+    group_id: {
+        type: mongoose.Schema.Types.ObjectId, // Assuming group_id references another collection
+        ref: 'Group'
+    },
+    campaignStatus: {
+        type: String,
+        enum: ['pending', 'sent', 'failed', 'completed'],
+        default: 'pending'
     },
     type: {
         type: String,
@@ -364,4 +379,4 @@ campaignSchema.methods.updateRecipientStatus = async function(phoneNumber, statu
 
 const Campaign = mongoose.model('Campaign', campaignSchema);
 
-module.exports = Campaign; 
+module.exports = Campaign;

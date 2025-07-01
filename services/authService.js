@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
@@ -218,6 +217,9 @@ const getUserPermissions = (role) => {
       canManageAllGroups: true,
       canManageAllTemplates: true,
       canManageAllCredits: true,
+      canAddCredits: true,
+      canDebitCredits: true,
+      canManageSubUserCredits: true,
       canManageAllAPIKeys: true,
       hasUnlimitedCredits: true
     },
@@ -238,6 +240,9 @@ const getUserPermissions = (role) => {
       canManageAllGroups: false,
       canManageAllTemplates: false,
       canManageAllCredits: false,
+      canAddCredits: true,
+      canDebitCredits: true,
+      canManageSubUserCredits: true,
       canManageAllAPIKeys: false,
       hasUnlimitedCredits: false
     },

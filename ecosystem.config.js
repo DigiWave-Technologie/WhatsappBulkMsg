@@ -24,9 +24,7 @@ module.exports = {
         WAAPI_KEY: process.env.WAAPI_KEY,
         FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
         FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
-        WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
-        INITIAL_SHORT_LIVED_TOKEN: process.env.INITIAL_SHORT_LIVED_TOKEN,
-        WHATSAPP_BUSINESS_ACCOUNT_ID: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+        INITIAL_SHORT_LIVED_TOKEN: process.env.INITIAL_SHORT_LIVED_TOKEN
       },
       env_production: {
         NODE_ENV: 'production',
@@ -41,9 +39,7 @@ module.exports = {
         WAAPI_KEY: process.env.WAAPI_KEY,
         FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
         FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
-        WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
         INITIAL_SHORT_LIVED_TOKEN: process.env.INITIAL_SHORT_LIVED_TOKEN,
-        WHATSAPP_BUSINESS_ACCOUNT_ID: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
         instances: 'max',
         exec_mode: 'cluster'
       },
@@ -90,4 +86,4 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
-}; 
+};

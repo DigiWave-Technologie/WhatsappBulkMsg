@@ -193,22 +193,13 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
-    canManageAllTemplates: {
-      type: Boolean,
-      default: false
-    },
-    canManageAllCredits: {
-      type: Boolean,
-      default: false
-    },
-    canManageAllAPIKeys: {
-      type: Boolean,
-      default: false
-    },
-    hasUnlimitedCredits: {
-      type: Boolean,
-      default: false
-    }
+    canManageAllTemplates: { type: Boolean, default: false },
+        canManageAllCredits: { type: Boolean, default: false },
+        canAddCredits: { type: Boolean, default: false },
+        canDebitCredits: { type: Boolean, default: false },
+        canManageSubUserCredits: { type: Boolean, default: false },
+        canManageAllAPIKeys: { type: Boolean, default: false },
+        hasUnlimitedCredits: { type: Boolean, default: false }
   },
   isActive: {
     type: Boolean,
@@ -366,7 +357,8 @@ userSchema.pre('save', async function(next) {
       'canManageAdmins', 'canManageResellers', 'canManageUsers', 'canViewAnalytics',
       'canManageSettings', 'canManagePricingPlans', 'canViewSystemStats',
       'canManageAllCampaigns', 'canManageAllReports', 'canManageAllGroups',
-      'canManageAllTemplates', 'canManageAllCredits'
+      'canManageAllTemplates', 'canManageAllCredits',
+        'canAddCredits', 'canDebitCredits', 'canManageSubUserCredits'
     ];
     allPermissions.forEach(perm => {
       if (this.rolePermissions && typeof this.rolePermissions[perm] !== 'undefined') {

@@ -2,6 +2,8 @@
 const rolePermissions = {
     super_admin: ['*'],
     admin: [
+        'debit_any_credits',
+        'debit_sub_users',
         'manage_users',
         'manage_credits',
         'transfer_credits',
@@ -15,6 +17,7 @@ const rolePermissions = {
         'manage_groups'
     ],
     reseller: [
+        'debit_sub_users',
         'manage_credits',
         'transfer_credits',
         'view_user_transactions',
@@ -50,4 +53,4 @@ const checkPermission = (user, permission) => {
 module.exports = {
     rolePermissions,
     checkPermission
-}; 
+};

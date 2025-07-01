@@ -4,10 +4,8 @@ const axios = require('axios');
 
 // WhatsApp Cloud API configuration
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const WHATSAPP_API_VERSION = 'v22.0';
-const WHATSAPP_API_URL = `https://graph.facebook.com/${WHATSAPP_API_VERSION}`;
+
+
 
 // Webhook verification
 router.get('/', (req, res) => {
@@ -55,7 +53,8 @@ router.post('/', async (req, res) => {
                 });
 
                 // Send response back to WhatsApp
-                await sendWhatsAppMessage(from, `Received your message: ${msg_body}`);
+                const WHATSAPP_API_URL = `https://graph.facebook.com/v22.0`; // This will be dynamic later
+                await sendWhatsAppMessage(from, `Received your message: ${msg_body}`, phone_number_id, WHATSAPP_API_URL);
             }
             res.sendStatus(200);
         } else {
@@ -68,11 +67,11 @@ router.post('/', async (req, res) => {
 });
 
 // Function to send WhatsApp message
-async function sendWhatsAppMessage(to, message) {
+async function sendWhatsAppMessage(to, message, phoneNumberId, apiUrl) {
     try {
         const response = await axios({
             method: 'POST',
-            url: `${WHATSAPP_API_URL}/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+            url: `${apiUrl}/${phoneNumberId}/messages`,
             headers: {
                 'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
                 'Content-Type': 'application/json',
@@ -91,4 +90,4 @@ async function sendWhatsAppMessage(to, message) {
     }
 }
 
-module.exports = router; 
+module.exports = router;

@@ -1,13 +1,11 @@
-const dbconnection = require("../config/database");
+const Credittype = require('../models/Credittype');
 
-exports.getAllCredittype = () => {
-  return new Promise((resolve, reject) => {
-    const query = "SELECT * FROM credittype";
-    dbconnection.query(query, (error, results) => {
-      if (error) {
-        return reject(error);
-      }
-      resolve(results);
-    });
-  });
+exports.getAllCredittype = async () => {
+  try {
+    const credittypes = await Credittype.find({});
+    return credittypes;
+  } catch (error) {
+    console.error('Error fetching credittypes:', error);
+    throw error;
+  }
 };

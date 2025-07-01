@@ -36,8 +36,22 @@ const transferCredit = async (req, res) => {
 // Debit credits from user
 const debitCredit = async (req, res) => {
   try {
-    const { categoryId, creditAmount, campaignId } = req.body;
-    const userId = req.user.userId; // Get from authenticated user
+    const { categoryId, creditAmount, campaignId, targetUserId } = req.body;
+    const requester = req.user;
+    
+    // Validate permissions
+    if (requester.role !== 'super_admin') {
+      if (targetUserId && requester.userId !== targetUserId) { // Debiting another user
+        if (!requester.rolePermissions.canManageSubUserCredits || !requester.subUsers.includes(targetUserId)) {
+          return res.status(403).json({ success: false, error: 'You do not have permission to debit credits for this user.' });
+        }
+      } else { // Debiting self
+        if (!requester.rolePermissions.canDebitCredits) {
+          return res.status(403).json({ success: false, error: 'You do not have permission to debit your own credits.' });
+        }
+      }
+    }
+    const userId = targetUserId || requester.userId;
 
     if (!categoryId || !creditAmount) {
       return res.status(400).json({ error: "Category ID and credit amount are required." });
@@ -47,7 +61,8 @@ const debitCredit = async (req, res) => {
       userId,
       categoryId,
       creditAmount,
-      campaignId
+      campaignId,
+      requester.userId // Track initiator
     );
 
     return res.status(200).json({
@@ -259,11 +274,17 @@ const addCredits = async (req, res) => {
     }
 
     // Check if user has permission to add credits
-    if (req.user.role !== 'super_admin' && !req.user.rolePermissions.canManageAllCredits) {
-      return res.status(403).json({
-        success: false,
-        error: "You don't have permission to add credits"
-      });
+    const requester = req.user;
+    if (requester.role !== 'super_admin') {
+      if (userId && requester.userId !== userId) { // Adding credits to another user
+        if (!requester.rolePermissions.canManageSubUserCredits || !requester.subUsers.includes(userId)) {
+          return res.status(403).json({ success: false, error: 'You do not have permission to add credits to this user.' });
+        }
+      } else { // Adding credits to self
+        if (!requester.rolePermissions.canAddCredits) {
+          return res.status(403).json({ success: false, error: 'You do not have permission to add credits to your own account.' });
+        }
+      }
     }
 
     const result = await creditService.addCredit(userId, categoryId, amount);
