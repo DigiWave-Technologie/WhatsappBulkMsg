@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const messageLogSchema = new mongoose.Schema({
   messageId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -53,7 +52,7 @@ const messageLogSchema = new mongoose.Schema({
 
 // Indexes
 messageLogSchema.index({ userId: 1, createdAt: -1 });
-messageLogSchema.index({ messageId: 1 });
+messageLogSchema.index({ messageId: 1 }, { unique: true });
 messageLogSchema.index({ campaignId: 1 });
 messageLogSchema.index({ status: 1 });
 

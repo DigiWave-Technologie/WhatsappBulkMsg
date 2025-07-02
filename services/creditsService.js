@@ -469,10 +469,14 @@ class CreditService {
    */
   async getUserCategory(userId) {
     const credits = await Credit.find({ userId })
-      .populate('categoryId', 'name creditCost')
+      .populate('categoryId', 'name creditCost mediaCreditCost interactiveCreditCost isActive')
       .lean();
-    
     return credits.map(credit => credit.categoryId);
+  }
+
+  // Alias for compatibility
+  async getUserCategories(userId) {
+    return this.getUserCategory(userId);
   }
 
   async decrementCreditByUser(userId, categoryId, amount) {

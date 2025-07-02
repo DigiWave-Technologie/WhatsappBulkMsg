@@ -4,8 +4,7 @@ const userTriggerSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
-        trim: true,
-        unique: true
+        trim: true
     },
     quick_reply: {
         type: String,
