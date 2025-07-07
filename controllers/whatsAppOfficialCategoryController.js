@@ -153,12 +153,10 @@ exports.deleteCategory = async (req, res) => {
             throw new ApiError(404, 'Category not found');
         }
 
-        // Check if category is in use
-        const templateCount = await WhatsAppOfficialTemplate.countDocuments({ category: category._id });
-        if (templateCount > 0) {
-            throw new ApiError(400, 'Cannot delete category that is in use by templates');
-        }
+        // Delete all templates associated with this category
+        await WhatsAppOfficialTemplate.deleteMany({ category: category._id });
 
+        // Now, delete the category
         await category.deleteOne();
 
         res.status(200).json({
