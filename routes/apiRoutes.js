@@ -1,7 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const developerApiController = require('../controllers/developerApiController');
-const { authenticateApiKey } = require('../middleware/auth');
+const whatsappOfficialController = require('../controllers/whatsappOfficialController');
+const whatsappOfficialRoutes = require('./whatsappOfficialRoutes');
+const { authenticateApiKey, authenticateToken } = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, '../uploads/whatsapp-media');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + '-' + file.originalname.replace(/\s+/g, '_'));
+    }
+});
+const upload = multer({ storage });
 
 // ===== Message Sending Endpoints =====
 router.post('/messages/text', authenticateApiKey, developerApiController.sendMessage);
@@ -25,6 +46,16 @@ router.post('/templates', authenticateApiKey, developerApiController.createTempl
 router.get('/templates', authenticateApiKey, developerApiController.getTemplates);
 router.put('/templates/:id', authenticateApiKey, developerApiController.updateTemplate);
 router.delete('/templates/:id', authenticateApiKey, developerApiController.deleteTemplate);
+
+// ===== WhatsApp Official Template Endpoints =====
+router.use('/whatsapp-official', whatsappOfficialRoutes);
+router.post('/whatsapp-official/templates', authenticateToken, upload.single('media'), whatsappOfficialController.createTemplate);
+router.get('/whatsapp-official/templates', authenticateToken, whatsappOfficialController.getTemplates);
+router.get('/whatsapp-official/templates/:id', authenticateToken, whatsappOfficialController.getTemplateById);
+router.get('/whatsapp-official/templates/category/:categoryId', authenticateToken, whatsappOfficialController.getTemplatesByCategory);
+router.get('/whatsapp-official/templates/user/:userId', authenticateToken, whatsappOfficialController.getTemplatesByUser);
+router.put('/whatsapp-official/templates/:id', authenticateToken, upload.single('media'), whatsappOfficialController.updateTemplate);
+router.delete('/whatsapp-official/templates/:id', authenticateToken, whatsappOfficialController.deleteTemplate);
 
 // ===== Number Validation Endpoint =====
 router.post('/validate-numbers', authenticateApiKey, developerApiController.validateNumbers);

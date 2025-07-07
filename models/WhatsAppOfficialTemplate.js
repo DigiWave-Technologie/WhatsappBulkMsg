@@ -35,7 +35,7 @@ const whatsAppOfficialTemplateSchema = new mongoose.Schema({
         media: {
             type: {
                 type: String,
-                enum: ['image', 'video', 'pdf']
+                enum: ['image', 'video', 'document', 'audio', 'sticker', 'location', 'dp', 'none', 'pdf']
             },
             url: String
         }
@@ -52,9 +52,14 @@ const whatsAppOfficialTemplateSchema = new mongoose.Schema({
     action_buttons: [{
         type: {
             type: String,
-            enum: ['quick_reply', 'visit_website', 'phone_number', 'flow']
+            enum: ['quick_reply', 'visit_website', 'phone_number', 'flow', 'url']
         },
         button_text: String,
+        url_type: { 
+            type: String,
+            enum: ['static', 'dynamic'],
+            required: function() { return this.type === 'visit_website'; }
+        },
         url: String,
         phone_number: String,
         flow_id: String,
