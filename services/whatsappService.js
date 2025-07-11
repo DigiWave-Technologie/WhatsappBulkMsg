@@ -800,7 +800,7 @@ class WhatsAppService {
     }
 
     // Send template message with specific phone number
-    async sendTemplateMessageWithPhoneNumber(userId, to, templateName, languageCode, components = [], phoneNumber) {
+    async sendTemplateMessageWithPhoneNumber(userId, to, templateName, languageCode, components = [], phoneNumber, category = 'virtual_credit') {
         try {
             const config = await this.getWhatsAppConfigByPhoneNumber(userId, phoneNumber);
             if (!config) {
@@ -822,7 +822,7 @@ class WhatsAppService {
             }
 
             // Use the improved sendMessageWithPhoneNumber
-            return await this.sendMessageWithPhoneNumber(userId, to, message, phoneNumber);
+            return await this.sendMessageWithPhoneNumber(userId, to, message, phoneNumber, category);
         } catch (error) {
             logger.error('Error sending template message:', error);
             throw error;
@@ -837,34 +837,55 @@ class WhatsAppService {
                 throw new Error('User not found');
             }
 
-            // Find the category by name first
-            const categoryDoc = await Category.findOne({ name: category });
+            // Find the category by name or ID
+            let categoryDoc;
+            if (mongoose.Types.ObjectId.isValid(category)) {
+                categoryDoc = await Category.findById(category);
+            } else {
+                categoryDoc = await Category.findOne({ name: category });
+            }
+
             if (!categoryDoc) {
                 throw new Error(`Category '${category}' not found`);
             }
 
             // Find credit by userId and categoryId
-            const credit = await Credit.findOne({ 
-                userId, 
-                categoryId: categoryDoc._id 
+            const credit = await Credit.findOne({
+                userId,
+                categoryId: categoryDoc._id
             });
-            
-            if (!credit || credit.credit <= 0) {
-                throw new Error('Insufficient credits');
+
+            logger.info(`Credit check for user ${userId}, category ${categoryDoc.name} (${categoryDoc._id}):`, {
+                creditFound: !!credit,
+                isUnlimited: credit?.isUnlimited,
+                creditAmount: credit?.credit
+            });
+
+            if (!credit) {
+                throw new Error(`No credits found for category '${categoryDoc.name}'. Please purchase credits first.`);
             }
 
-            credit.credit -= 1;
-            await credit.save();
+            if (!credit.isUnlimited && credit.credit <= 0) {
+                throw new Error(`Insufficient credits for category '${categoryDoc.name}'. Required: 1, Available: ${credit.credit}`);
+            }
 
-            // Log credit transaction
-            await CreditTransaction.create({
-                fromUserId: userId,
-                toUserId: userId,
-                categoryId: categoryDoc._id,
-                creditType: 'debit',
-                credit: 1,
-                description: 'Message sent'
-            });
+            // Only deduct credits if not unlimited
+            if (!credit.isUnlimited) {
+                credit.credit -= 1;
+                await credit.save();
+            }
+
+            // Log credit transaction only if credits were actually deducted
+            if (!credit.isUnlimited) {
+                await CreditTransaction.create({
+                    fromUserId: userId,
+                    toUserId: userId,
+                    categoryId: categoryDoc._id,
+                    creditType: 'debit',
+                    credit: 1,
+                    description: 'Message sent'
+                });
+            }
 
             return {
                 success: true,

@@ -38,7 +38,7 @@ const getCampaigns = asyncHandler(async (req, res) => {
     const filters = { status, type, startDate, endDate };
     
     const campaigns = await campaignService.getCampaigns(
-        req.user._id,
+        req.user.userId || req.user._id,
         filters,
         parseInt(page),
         parseInt(limit)
@@ -53,10 +53,10 @@ const getCampaigns = asyncHandler(async (req, res) => {
 
 // Get campaign by ID
 const getCampaignById = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
-    const campaign = await campaignService.getCampaignById(campaignId, userId);
+    const campaign = await campaignService.getCampaignById(userId, campaignId);
 
     res.status(200).json({
         success: true,
@@ -66,8 +66,8 @@ const getCampaignById = asyncHandler(async (req, res) => {
 
 // Update campaign
 const updateCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
     const updateData = req.body;
 
     const campaign = await campaignService.updateCampaign(campaignId, updateData, userId);
@@ -81,8 +81,8 @@ const updateCampaign = asyncHandler(async (req, res) => {
 
 // Delete campaign
 const deleteCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     await campaignService.deleteCampaign(campaignId, userId);
 
@@ -118,8 +118,8 @@ const startCampaign = asyncHandler(async (req, res) => {
 
 // Pause campaign
 const pauseCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {
@@ -136,8 +136,8 @@ const pauseCampaign = asyncHandler(async (req, res) => {
 
 // Resume campaign
 const resumeCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {
@@ -154,8 +154,8 @@ const resumeCampaign = asyncHandler(async (req, res) => {
 
 // Cancel campaign
 const cancelCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {
@@ -172,8 +172,8 @@ const cancelCampaign = asyncHandler(async (req, res) => {
 
 // Get campaign stats
 const getCampaignStats = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {
@@ -188,8 +188,8 @@ const getCampaignStats = asyncHandler(async (req, res) => {
 
 // Get campaign delivery reports
 const getCampaignDeliveryReports = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {
@@ -254,9 +254,9 @@ const getRecipientStatus = asyncHandler(async (req, res) => {
 
 // Schedule campaign
 const scheduleCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
+    const { id: campaignId } = req.params;
     const { scheduledTime } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {
@@ -273,8 +273,8 @@ const scheduleCampaign = asyncHandler(async (req, res) => {
 
 // Rerun campaign
 const rerunCampaign = asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const userId = req.user._id;
+    const { id: campaignId } = req.params;
+    const userId = req.user.userId || req.user._id;
 
     const campaign = await campaignService.getCampaignById(campaignId, userId);
     if (!campaign) {

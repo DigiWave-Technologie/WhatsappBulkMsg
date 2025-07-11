@@ -106,7 +106,8 @@ exports.sendMessage = async (req, res) => {
             templateName,
             languageCode,
             components,
-            phoneNumber
+            phoneNumber,
+            category
         );
 
         res.status(200).json({

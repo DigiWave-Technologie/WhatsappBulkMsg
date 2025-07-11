@@ -170,22 +170,83 @@ class CampaignService {
                     throw new ApiError(400, 'Group/Channel campaign must have a group or channel ID');
                 }
                 break;
+            case 'WHATSAPP_OFFICIAL':
+                if (!data.metaTemplate || !data.metaTemplate.name) {
+                    throw new ApiError(400, 'WhatsApp Official campaign must have a template name');
+                }
+                if (!data.metaTemplate.language || !data.metaTemplate.language.code) {
+                    throw new ApiError(400, 'WhatsApp Official campaign must have a language code');
+                }
+                if (!data.schedule || !data.schedule.startAt) {
+                    throw new ApiError(400, 'Schedule start time is required');
+                }
+                break;
+        }
+    }
+
+    // Get all campaigns for a user
+    async getCampaigns(userId, filters = {}, page = 1, limit = 10) {
+        try {
+            const query = { userId };
+
+            // Apply filters
+            if (filters.status) {
+                query.status = filters.status;
+            }
+            if (filters.type) {
+                query.type = filters.type;
+            }
+            if (filters.startDate || filters.endDate) {
+                query.createdAt = {};
+                if (filters.startDate) {
+                    query.createdAt.$gte = new Date(filters.startDate);
+                }
+                if (filters.endDate) {
+                    query.createdAt.$lte = new Date(filters.endDate);
+                }
+            }
+
+            const skip = (page - 1) * limit;
+
+            const campaigns = await Campaign.find(query)
+                .populate('templateId', 'name content')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            const total = await Campaign.countDocuments(query);
+
+            return {
+                campaigns,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit)
+                }
+            };
+        } catch (error) {
+            throw new ApiError(500, `Error fetching campaigns: ${error.message}`);
         }
     }
 
     // Get campaign by ID
     async getCampaignById(userId, campaignId) {
-        // Ensure userId is an ObjectId for comparison
-        const userObjectId = typeof userId === 'string' ? mongoose.Types.ObjectId(userId) : userId;
-        console.log('Looking for campaign:', { _id: campaignId, userId: userObjectId });
-        const campaign = await Campaign.findOne({ _id: campaignId, userId: userObjectId })
-            .populate('templateId', 'name content');
+        try {
+            // Ensure userId is an ObjectId for comparison
+            const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+            console.log('Looking for campaign:', { _id: campaignId, userId: userObjectId });
+            const campaign = await Campaign.findOne({ _id: campaignId, userId: userObjectId })
+                .populate('templateId', 'name content');
 
-        if (!campaign) {
-            throw new Error('Campaign not found');
+            if (!campaign) {
+                throw new ApiError(404, 'Campaign not found');
+            }
+
+            return campaign;
+        } catch (error) {
+            throw new ApiError(500, `Error fetching campaign: ${error.message}`);
         }
-
-        return campaign;
     }
 
     // Update campaign (Consider adding checks for paused/running status if needed)

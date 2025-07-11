@@ -25,7 +25,8 @@ const config = {
 
     // WhatsApp API configuration
     whatsapp: {
-        accessToken: process.env.WHATSAPP_ACCESS_TOKEN
+        accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+        apiUrl: process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v22.0'
     },
 
     // File upload configuration
