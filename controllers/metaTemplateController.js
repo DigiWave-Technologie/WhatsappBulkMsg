@@ -359,6 +359,70 @@ const getCampaignCategories = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get local templates from database
+ */
+const getLocalTemplates = asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+
+    // Check user permissions for viewing WhatsApp Official templates
+    if (!checkPermission(req.user, 'view_whatsapp_official_templates')) {
+        return res.status(403).json({
+            success: false,
+            message: 'Insufficient permissions to view WhatsApp Official templates'
+        });
+    }
+
+    logger.info('Getting local templates from database:', {
+        userId,
+        userRole: req.user.role,
+        query: req.query
+    });
+
+    const result = await metaTemplateService.getLocalTemplates(userId, req.query);
+
+    res.status(200).json({
+        success: true,
+        message: 'Local templates retrieved successfully',
+        data: result.data,
+        pagination: result.pagination
+    });
+});
+
+/**
+ * Sync template status from Meta API
+ */
+const syncTemplateStatus = asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+    const { id } = req.params;
+
+    // Check user permissions
+    if (!checkPermission(req.user, 'manage_whatsapp_official_templates')) {
+        return res.status(403).json({
+            success: false,
+            message: 'Insufficient permissions to sync WhatsApp Official templates'
+        });
+    }
+
+    if (!id) {
+        throw new ApiError(400, 'Template ID is required');
+    }
+
+    logger.info('Syncing template status from Meta API:', {
+        userId,
+        templateId: id,
+        userRole: req.user.role
+    });
+
+    const result = await metaTemplateService.syncTemplateStatus(userId, id);
+
+    res.status(200).json({
+        success: true,
+        message: 'Template status synced successfully',
+        data: result
+    });
+});
+
+/**
  * Get user's credit balance for template creation
  */
 const getUserCredits = asyncHandler(async (req, res) => {
@@ -388,11 +452,13 @@ module.exports = {
     createTemplate,
     getTemplates,
     getAllTemplatesWithDetails,
+    getLocalTemplates,
     getTemplate,
     deleteTemplate,
     deleteMultipleTemplates,
     updateTemplate,
     getTemplateAnalytics,
+    syncTemplateStatus,
     getWhatsAppCategories,
     getCampaignCategories,
     getUserCredits

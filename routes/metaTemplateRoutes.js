@@ -44,6 +44,21 @@ router.get('/', metaTemplateController.getTemplates);
 router.get('/all/details', metaTemplateController.getAllTemplatesWithDetails);
 
 /**
+ * @route   GET /api/meta-templates/local
+ * @desc    Get templates from local database with pagination and filtering
+ * @access  Private
+ * @query   {
+ *   status?: string,
+ *   category?: string,
+ *   limit?: number,
+ *   page?: number,
+ *   search?: string,
+ *   include_deleted?: boolean
+ * }
+ */
+router.get('/local', metaTemplateController.getLocalTemplates);
+
+/**
  * @route   GET /api/meta-templates/:id
  * @desc    Get WhatsApp template by ID from Meta API
  * @access  Private
@@ -80,6 +95,13 @@ router.post('/bulk-delete', metaTemplateController.deleteMultipleTemplates);
  * @access  Private
  */
 router.get('/:id/analytics', metaTemplateController.getTemplateAnalytics);
+
+/**
+ * @route   POST /api/meta-templates/:id/sync
+ * @desc    Sync template status from Meta API to local database
+ * @access  Private
+ */
+router.post('/:id/sync', metaTemplateController.syncTemplateStatus);
 
 /**
  * @route   GET /api/meta-templates/categories/whatsapp

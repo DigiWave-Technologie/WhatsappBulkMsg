@@ -4,6 +4,7 @@ const WhatsAppConfig = require('../models/WhatsAppConfig');
 const WhatsAppOfficialCategory = require('../models/WhatsAppOfficialCategory');
 const Category = require('../models/Category');
 const User = require('../models/User');
+const MetaTemplate = require('../models/MetaTemplate');
 const { Credit, CreditTransaction } = require('../models/Credit');
 const { ApiError } = require('../utils/ApiError');
 const { checkPermission } = require('../utils/permissions');
@@ -298,6 +299,39 @@ class MetaTemplateService {
         );
       }
 
+      // Save template information to local database
+      const localTemplate = new MetaTemplate({
+        meta_template_id: response.data.id,
+        template_name: template_name,
+        language: language,
+        category: response.data.category,
+        status: response.data.status,
+        components: metaTemplate.components,
+        created_by: userId,
+        created_by_username: user.username,
+        created_by_role: user.role,
+        whatsapp_business_account_id: config.whatsappBusinessAccountId,
+        whatsapp_config_id: config._id,
+        whatsapp_official_category_id: whatsapp_official_category_id,
+        campaign_category_id: campaign_category_id,
+        credit_cost: creditCost,
+        credits_deducted: campaignCategory ? creditCost : 0,
+        credit_transaction_id: creditTransaction?._id,
+        parameter_format: response.data.parameter_format || 'POSITIONAL',
+        variable_count: this.extractVariables(body).length,
+        meta_api_response: response.data,
+        last_sync_at: new Date(),
+        sync_status: 'synced'
+      });
+
+      await localTemplate.save();
+
+      logger.info('Template saved to local database:', {
+        localId: localTemplate._id,
+        metaId: response.data.id,
+        templateName: template_name
+      });
+
       return {
         id: response.data.id,
         name: template_name,
@@ -316,7 +350,9 @@ class MetaTemplateService {
           id: user._id,
           username: user.username,
           role: user.role
-        }
+        },
+        local_id: localTemplate._id,
+        local_saved: true
       };
 
     } catch (error) {
@@ -454,6 +490,21 @@ class MetaTemplateService {
         success: response.data.success
       });
 
+      // Mark template as deleted in local database
+      try {
+        const localTemplate = await MetaTemplate.findOne({ meta_template_id: templateId });
+        if (localTemplate) {
+          await localTemplate.softDelete(null); // Will be updated with user ID in controller
+          logger.info('Template marked as deleted in local database:', {
+            localId: localTemplate._id,
+            metaId: templateId
+          });
+        }
+      } catch (localError) {
+        logger.warn('Failed to update local template deletion status:', localError);
+        // Don't fail the entire operation if local update fails
+      }
+
       return {
         success: true,
         message: 'Template deleted successfully',
@@ -579,6 +630,99 @@ class MetaTemplateService {
 
     } catch (error) {
       logger.error('Bulk template deletion failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get local templates from database
+   */
+  async getLocalTemplates(userId, options = {}) {
+    try {
+      // Check user permissions
+      await this.checkTemplatePermissions(userId, 'canViewWhatsAppOfficialTemplates');
+
+      const {
+        status,
+        category,
+        limit = 25,
+        page = 1,
+        search,
+        include_deleted = false
+      } = options;
+
+      const query = { created_by: userId };
+
+      if (!include_deleted) {
+        query.is_active = true;
+      }
+
+      if (status) {
+        query.status = status;
+      }
+
+      if (category) {
+        query.category = category;
+      }
+
+      if (search) {
+        query.$or = [
+          { template_name: { $regex: search, $options: 'i' } },
+          { created_by_username: { $regex: search, $options: 'i' } }
+        ];
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [templates, total] = await Promise.all([
+        MetaTemplate.find(query)
+          .populate('whatsapp_official_category_id', 'name description')
+          .populate('campaign_category_id', 'name creditCost')
+          .populate('created_by', 'username firstName lastName role')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        MetaTemplate.countDocuments(query)
+      ]);
+
+      return {
+        success: true,
+        data: templates,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      };
+
+    } catch (error) {
+      logger.error('Failed to get local templates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sync template status from Meta API to local database
+   */
+  async syncTemplateStatus(userId, templateId) {
+    try {
+      // Get template from Meta API
+      const metaTemplate = await this.getTemplate(userId, templateId);
+
+      // Update local template
+      const localTemplate = await MetaTemplate.findOne({ meta_template_id: templateId });
+      if (localTemplate) {
+        await localTemplate.updateFromMeta(metaTemplate);
+        logger.info('Template status synced:', {
+          templateId,
+          newStatus: metaTemplate.status
+        });
+      }
+
+      return localTemplate;
+    } catch (error) {
+      logger.error('Failed to sync template status:', error);
       throw error;
     }
   }
