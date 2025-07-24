@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/whatsapp-bulk-message');
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/whatsapp_bulk_campaign');
 
     console.log(`MongoDB Connected from mongodb.js: ${conn.connection.host}`);
 

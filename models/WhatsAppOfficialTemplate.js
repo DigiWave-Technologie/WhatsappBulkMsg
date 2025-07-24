@@ -14,7 +14,7 @@ const whatsAppOfficialTemplateSchema = new mongoose.Schema({
     language: {
         type: String,
         required: true,
-        enum: ['en', 'es', 'fr', 'de', 'it', 'pt', 'hi', 'ar'] // Add more languages as needed
+        enum: ['en_US', 'en_GB', 'es_ES', 'es_MX', 'fr_FR', 'de_DE', 'it_IT', 'pt_BR', 'pt_PT', 'hi_IN', 'ar_SA', 'en', 'es', 'fr', 'de', 'it', 'pt', 'hi', 'ar'] // Meta API format and simple format
     },
     template_type: {
         type: String,

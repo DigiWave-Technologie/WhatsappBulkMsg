@@ -1,22 +1,42 @@
 const WhatsAppOfficialTemplate = require('../models/WhatsAppOfficialTemplate');
 const WhatsAppOfficialCategory = require('../models/WhatsAppOfficialCategory');
+const whatsappOfficialTemplateService = require('../services/whatsappOfficialTemplateService');
 const { ApiError } = require('../utils/ApiError');
 const logger = require('../utils/logger');
 
-// Create a new template
+// Create a new template with Meta API sync
 exports.createTemplate = async (req, res) => {
     try {
-        const {
-            template_name,
-            category,
-            language,
-            template_type,
-            enable_click_tracking,
-            header,
-            body,
-            footer_text,
-            action_buttons
-        } = req.body;
+        const userId = req.user.userId;
+
+        // Validate user authentication
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User authentication required'
+            });
+        }
+
+        // Validate request body
+        const { template_name, category, language, body } = req.body;
+
+        if (!template_name || !category || !language || !body) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields',
+                errors: [
+                    { field: 'template_name', message: 'Template name is required' },
+                    { field: 'category', message: 'Category is required' },
+                    { field: 'language', message: 'Language is required' },
+                    { field: 'body', message: 'Body text is required' }
+                ].filter(error => !req.body[error.field.split('.')[0]])
+            });
+        }
+
+        logger.info('Creating WhatsApp official template with Meta sync:', {
+            userId,
+            templateName: template_name
+        });
 
         // Validate category exists
         const categoryExists = await WhatsAppOfficialCategory.findById(category);
@@ -24,38 +44,32 @@ exports.createTemplate = async (req, res) => {
             throw new ApiError(404, 'Category not found');
         }
 
-        // Check if template with same name and language exists
-        const existingTemplate = await WhatsAppOfficialTemplate.findOne({
-            template_name,
-            language
-        });
-
-        if (existingTemplate) {
-            throw new ApiError(400, 'Template with this name and language already exists');
-        }
-
-        const template = await WhatsAppOfficialTemplate.create({
-            template_name,
-            category,
-            language,
-            template_type,
-            enable_click_tracking,
-            header,
-            body,
-            footer_text,
-            action_buttons,
-            created_by: req.user.userId
-        });
+        // Create template using the service with Meta API sync
+        const result = await whatsappOfficialTemplateService.createTemplate(userId, req.body);
 
         res.status(201).json({
             success: true,
-            data: template
+            message: 'WhatsApp official template created successfully',
+            data: result.localTemplate,
+            syncResult: result.syncResult,
+            metaSync: result.metaSync
         });
     } catch (error) {
         logger.error('Error creating template:', error);
-        res.status(error.statusCode || 500).json({
+
+        // Handle specific API errors
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message,
+                ...(error.errors && { errors: error.errors })
+            });
+        }
+
+        res.status(500).json({
             success: false,
-            message: error.message
+            message: 'Internal server error',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
         });
     }
 };

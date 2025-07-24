@@ -379,12 +379,7 @@ userSchema.pre('save', async function(next) {
 
 // Add method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  console.log('Comparing passwords...');
-  console.log('Candidate password:', candidatePassword);
-  console.log('Stored password hash:', this.password);
-  const isMatch = await bcrypt.compare(candidatePassword, this.password);
-  console.log('Password match result:', isMatch);
-  return isMatch;
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Method to add new session
