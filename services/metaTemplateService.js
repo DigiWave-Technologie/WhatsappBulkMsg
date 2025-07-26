@@ -11,254 +11,547 @@ const { checkPermission } = require('../utils/permissions');
 
 class MetaTemplateService {
   constructor() {
-    this.baseUrl = 'https://graph.facebook.com/v22.0';
+    this.baseUrl = 'https://graph.facebook.com/v18.0';
   }
 
   /**
-   * Get WhatsApp configuration for user
+   * Check user permissions for WhatsApp Official template management
    */
-  async getWhatsAppConfig(userId, businessAccountId = null) {
-    try {
-      const query = { userId, is_active: true };
-      
-      if (businessAccountId) {
-        query.whatsappBusinessAccountId = businessAccountId;
-      }
-
-      // Try to find specific config or default config
-      let config = await WhatsAppConfig.findOne(query);
-      if (!config && !businessAccountId) {
-        // Fallback to any active config
-        config = await WhatsAppConfig.findOne({ userId, is_active: true });
-      }
-
-      if (!config) {
-        throw new ApiError(404, 'WhatsApp configuration not found. Please configure WhatsApp first.');
-      }
-
-      return config;
-    } catch (error) {
-      logger.error('Error getting WhatsApp config:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Check user permissions for template management
-   */
-  async checkTemplatePermissions(userId, action = 'manage_templates') {
+  async checkTemplatePermissions(userId, action = 'canManageWhatsAppOfficialTemplates') {
     const user = await User.findById(userId);
     if (!user) {
       throw new ApiError(404, 'User not found');
     }
 
-    // Check role-based permissions
-    if (!checkPermission(user, action)) {
-      throw new ApiError(403, `Insufficient permissions for ${action}`);
+    // Super admin has all permissions
+    if (user.role === 'super_admin') {
+      return user;
+    }
+
+    // Check UI-based permissions for WhatsApp Official templates
+    const hasPermission = user.rolePermissions && user.rolePermissions[action];
+    if (!hasPermission) {
+      throw new ApiError(403, `Insufficient permissions for WhatsApp Official templates. Required: ${action}`);
     }
 
     return user;
   }
 
   /**
-   * Check and deduct credits for template creation
+   * Get WhatsApp configuration for user
    */
-  async checkTemplateCredits(userId, categoryId, creditCost = 1) {
-    const user = await User.findById(userId);
-
-    // Super admin has unlimited credits
-    if (user.role === 'super_admin') {
-      return { unlimited: true };
+  async getWhatsAppConfig(userId, whatsappBusinessAccountId = null) {
+    let query = { userId, is_active: true };
+    
+    if (whatsappBusinessAccountId) {
+      query.whatsappBusinessAccountId = whatsappBusinessAccountId;
+    } else {
+      query.is_default = true;
     }
 
-    // Check user credits
-    const userCredit = await Credit.findOne({ userId, categoryId });
-    if (!userCredit || (!userCredit.isUnlimited && userCredit.credit < creditCost)) {
-      throw new ApiError(402, 'Insufficient credits for template creation');
+    const config = await WhatsAppConfig.findOne(query);
+    if (!config) {
+      throw new ApiError(404, 'WhatsApp configuration not found. Please configure WhatsApp API first.');
     }
 
-    return userCredit;
+    if (!config.accessToken || !config.whatsappBusinessAccountId) {
+      throw new ApiError(400, 'WhatsApp configuration is incomplete. Missing access token or business account ID.');
+    }
+
+    return config;
   }
 
   /**
-   * Deduct credits for template creation
+   * Process template data for Meta API with full support for all template types
    */
-  async deductTemplateCredits(userId, categoryId, creditCost = 1, templateId = null) {
-    const user = await User.findById(userId);
+  async processTemplateData(templateData, userId) {
+    const {
+      template_name,
+      language = 'en_US',
+      category = 'MARKETING',
+      components = [],
+      // Legacy support
+      body,
+      footer_text,
+      header,
+      action_buttons,
+      whatsapp_business_account_id,
+      whatsapp_official_category_id,
+      campaign_category_id
+    } = templateData;
 
-    // Skip for super admin
-    if (user.role === 'super_admin') {
-      return { success: true, message: 'Super Admin has unlimited credits' };
+    // Validate required fields
+    if (!template_name || !language) {
+      throw new ApiError(400, 'Missing required fields: template_name, language');
     }
 
-    const userCredit = await Credit.findOne({ userId, categoryId });
-
-    if (!userCredit.isUnlimited) {
-      userCredit.credit -= creditCost;
-      userCredit.lastUsed = new Date();
-      await userCredit.save();
+    // Check if we have either components (new format) or body (legacy format)
+    if (!components || components.length === 0) {
+      if (!body) {
+        throw new ApiError(400, 'Missing required fields: either components array or body text is required');
+      }
     }
 
-    // Create transaction record
-    const transaction = new CreditTransaction({
-      fromUserId: userId,
-      toUserId: userId,
-      categoryId,
-      creditType: 'debit',
-      credit: creditCost,
-      description: `Template creation: ${templateId || 'Meta API Template'}`,
-      metadata: { templateId, action: 'template_creation' }
-    });
+    // Validate template name format (Meta API requirements)
+    if (!/^[a-z0-9_]+$/.test(template_name)) {
+      throw new ApiError(400, 'Template name must contain only lowercase letters, numbers, and underscores');
+    }
 
-    await transaction.save();
-    return transaction;
-  }
+    if (template_name.length < 1 || template_name.length > 512) {
+      throw new ApiError(400, 'Template name must be between 1 and 512 characters');
+    }
 
-  /**
-   * Create template directly in Meta API with credit integration
-   */
-  async createTemplate(userId, templateData) {
-    try {
-      const {
-        template_name,
-        language,
-        category = 'MARKETING',
+    // Validate WhatsApp Official Category if provided
+    let whatsappCategory = null;
+    if (whatsapp_official_category_id) {
+      whatsappCategory = await WhatsAppOfficialCategory.findById(whatsapp_official_category_id);
+      if (!whatsappCategory) {
+        throw new ApiError(404, 'WhatsApp Official Category not found');
+      }
+    }
+
+    // Validate Campaign Category for credit deduction
+    let campaignCategory = null;
+    let creditCost = 1; // Default credit cost
+    if (campaign_category_id) {
+      campaignCategory = await Category.findById(campaign_category_id);
+      if (!campaignCategory) {
+        throw new ApiError(404, 'Campaign Category not found');
+      }
+      creditCost = campaignCategory.creditCost || 1;
+    }
+
+    // Check credits before creating template
+    if (campaignCategory) {
+      await this.checkTemplateCredits(userId, campaign_category_id, creditCost);
+    }
+
+    // Build Meta API template structure
+    const metaTemplate = {
+      name: template_name,
+      language: language,
+      category: category.toUpperCase(),
+      components: []
+    };
+
+    let variableCount = 0;
+
+    // Process components (new format) or legacy format
+    if (components && components.length > 0) {
+      // New comprehensive format
+      metaTemplate.components = await this.processComponents(components);
+      variableCount = this.countVariablesInComponents(components);
+    } else {
+      // Legacy format support
+      metaTemplate.components = await this.buildLegacyComponents({
         body,
         footer_text,
         header,
-        action_buttons,
-        whatsapp_business_account_id,
-        whatsapp_official_category_id,
-        campaign_category_id
-      } = templateData;
+        action_buttons
+      });
+      variableCount = this.extractVariables(body || '').length;
+    }
 
-      // Check user permissions
-      const user = await this.checkTemplatePermissions(userId, 'manage_templates');
+    return {
+      metaTemplate,
+      whatsappCategory,
+      campaignCategory,
+      creditCost,
+      variableCount,
+      whatsapp_official_category_id,
+      campaign_category_id
+    };
+  }
 
-      // Validate required fields
-      if (!template_name || !language || !body) {
-        throw new ApiError(400, 'Missing required fields: template_name, language, body');
+  /**
+   * Process components for comprehensive template support
+   */
+  async processComponents(components) {
+    const processedComponents = [];
+
+    for (const component of components) {
+      const processedComponent = { type: component.type.toUpperCase() };
+
+      switch (component.type.toUpperCase()) {
+        case 'HEADER':
+          await this.processHeaderComponent(processedComponent, component);
+          break;
+        case 'BODY':
+          this.processBodyComponent(processedComponent, component);
+          break;
+        case 'FOOTER':
+          this.processFooterComponent(processedComponent, component);
+          break;
+        case 'BUTTONS':
+          this.processButtonsComponent(processedComponent, component);
+          break;
+        default:
+          throw new ApiError(400, `Unsupported component type: ${component.type}`);
       }
 
-      // Validate WhatsApp Official Category if provided
-      let whatsappCategory = null;
-      if (whatsapp_official_category_id) {
-        whatsappCategory = await WhatsAppOfficialCategory.findById(whatsapp_official_category_id);
-        if (!whatsappCategory) {
-          throw new ApiError(404, 'WhatsApp Official Category not found');
+      processedComponents.push(processedComponent);
+    }
+
+    return processedComponents;
+  }
+
+  /**
+   * Process header component with media support
+   */
+  async processHeaderComponent(processedComponent, component) {
+    const { format, text, media, location, example } = component;
+
+    if (!format) {
+      throw new ApiError(400, 'Header component must have a format');
+    }
+
+    processedComponent.format = format.toUpperCase();
+
+    switch (format.toUpperCase()) {
+      case 'TEXT':
+        if (!text) {
+          throw new ApiError(400, 'Text header must have text content');
+        }
+        if (text.length > 60) {
+          throw new ApiError(400, 'Header text must be 60 characters or less');
+        }
+        processedComponent.text = text;
+
+        // Add example for variables - Meta API expects array format
+        const variables = this.extractVariables(text);
+        if (variables.length > 0) {
+          processedComponent.example = {
+            header_text: variables.map((_, index) => `Header Variable ${index + 1}`)
+          };
+        }
+        break;
+
+      case 'IMAGE':
+      case 'VIDEO':
+      case 'DOCUMENT':
+        // For media headers in API v22, handle direct example format
+        if (example) {
+          // Use the provided example directly (exact API v22 format)
+          // Support both header_handle and header_url formats
+          processedComponent.example = example;
+        } else if (media && media.url) {
+          // Use the provided URL - ensure it's accessible and correct format
+          processedComponent.example = {
+            header_url: [media.url]
+          };
+        } else if (media && media.handle) {
+          // Use the provided media handle/ID
+          processedComponent.example = {
+            header_handle: [media.handle]
+          };
+        } else {
+          // Use working sample URLs with proper file extensions
+          const sampleUrl = format === 'IMAGE'
+            ? "https://via.placeholder.com/800x600.jpg"
+            : format === 'VIDEO'
+            ? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            : "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+
+          processedComponent.example = {
+            header_url: [sampleUrl]
+          };
+        }
+        break;
+
+      case 'LOCATION':
+        if (!location) {
+          throw new ApiError(400, 'Location header must have location data');
+        }
+        processedComponent.location = location;
+        break;
+
+      default:
+        throw new ApiError(400, `Unsupported header format: ${format}`);
+    }
+  }
+
+  /**
+   * Process body component
+   */
+  processBodyComponent(processedComponent, component) {
+    const { text, add_security_recommendation, example } = component;
+
+    if (text) {
+      if (text.length > 1024) {
+        throw new ApiError(400, 'Body text must be 1024 characters or less');
+      }
+      processedComponent.text = text;
+
+      // Handle direct example format or generate from variables
+      if (example) {
+        // Use the provided example directly (exact API v22 format)
+        processedComponent.example = example;
+      } else {
+        // Add example for variables - Meta API expects specific format
+        const variables = this.extractVariables(text);
+        if (variables.length > 0) {
+          processedComponent.example = {
+            body_text: [variables.map((_, index) => `Body Variable ${index + 1}`)]
+          };
         }
       }
+    } else if (add_security_recommendation) {
+      // For authentication templates without text, Meta API generates the body
+      processedComponent.add_security_recommendation = true;
+    }
 
-      // Validate Campaign Category for credit deduction
-      let campaignCategory = null;
-      let creditCost = 1; // Default credit cost
-      if (campaign_category_id) {
-        campaignCategory = await Category.findById(campaign_category_id);
-        if (!campaignCategory) {
-          throw new ApiError(404, 'Campaign Category not found');
-        }
-        creditCost = campaignCategory.creditCost || 1;
-      }
+    // For authentication templates
+    if (add_security_recommendation && text) {
+      processedComponent.add_security_recommendation = true;
+    }
+  }
 
-      // Check credits before creating template
-      if (campaignCategory) {
-        await this.checkTemplateCredits(userId, campaign_category_id, creditCost);
-      }
+  /**
+   * Process footer component
+   */
+  processFooterComponent(processedComponent, component) {
+    const { text, code_expiration_minutes } = component;
 
-      // Validate template name format (Meta API requirements)
-      if (!/^[a-z0-9_]+$/.test(template_name)) {
-        throw new ApiError(400, 'Template name must contain only lowercase letters, numbers, and underscores');
-      }
-
-      if (template_name.length < 1 || template_name.length > 512) {
-        throw new ApiError(400, 'Template name must be between 1 and 512 characters');
-      }
-
-      // Validate body text
-      if (body.length > 1024) {
-        throw new ApiError(400, 'Template body must be 1024 characters or less');
-      }
-
-      // Validate footer text if provided
-      if (footer_text && footer_text.length > 60) {
+    if (text) {
+      if (text.length > 60) {
         throw new ApiError(400, 'Footer text must be 60 characters or less');
       }
+      processedComponent.text = text;
+    }
 
-      // Get WhatsApp configuration
-      const config = await this.getWhatsAppConfig(userId, whatsapp_business_account_id);
+    // For authentication templates
+    if (code_expiration_minutes) {
+      processedComponent.code_expiration_minutes = code_expiration_minutes;
+    }
+  }
 
-      // Build Meta API template structure
-      const metaTemplate = {
-        name: template_name,
-        language: language,
-        category: category.toUpperCase(),
-        components: []
-      };
+  /**
+   * Process buttons component with all button types
+   */
+  processButtonsComponent(processedComponent, component) {
+    const { buttons } = component;
 
-      // Add header component if provided
-      if (header && header.type !== 'none') {
-        const headerComponent = { type: 'HEADER' };
-        
-        if (header.type === 'text') {
-          headerComponent.format = 'TEXT';
-          headerComponent.text = header.text;
-          
-          // Extract variables from header text
-          const headerVariables = this.extractVariables(header.text);
-          if (headerVariables.length > 0) {
-            headerComponent.example = {
-              header_text: headerVariables.map((_, index) => `Header Variable ${index + 1}`)
-            };
+    if (!buttons || !Array.isArray(buttons) || buttons.length === 0) {
+      throw new ApiError(400, 'Buttons component must have at least one button');
+    }
+
+    if (buttons.length > 10) {
+      throw new ApiError(400, 'Maximum 10 buttons allowed');
+    }
+
+    processedComponent.buttons = buttons.map(button => {
+      const processedButton = { type: button.type.toUpperCase() };
+
+      switch (button.type.toUpperCase()) {
+        case 'QUICK_REPLY':
+          if (!button.text || button.text.length > 25) {
+            throw new ApiError(400, 'Quick reply button text must be 1-25 characters');
           }
-        } else if (header.type === 'media') {
-          headerComponent.format = header.media.type.toUpperCase();
-          if (header.media.type === 'image') {
-            headerComponent.example = {
-              header_handle: [header.media.url || 'https://example.com/image.jpg']
-            };
+          processedButton.text = button.text;
+          break;
+
+        case 'URL':
+          if (!button.text || button.text.length > 25) {
+            throw new ApiError(400, 'URL button text must be 1-25 characters');
           }
-        }
-        
-        metaTemplate.components.push(headerComponent);
+          if (!button.url) {
+            throw new ApiError(400, 'URL button must have a URL');
+          }
+          processedButton.text = button.text;
+          processedButton.url = button.url;
+
+          // Add example for dynamic URLs
+          if (button.url.includes('{{')) {
+            const urlVariables = this.extractVariables(button.url);
+            if (urlVariables.length > 0) {
+              processedButton.example = urlVariables.map((_, index) => `url_param_${index + 1}`);
+            }
+          }
+          break;
+
+        case 'PHONE_NUMBER':
+          if (!button.text || button.text.length > 25) {
+            throw new ApiError(400, 'Phone button text must be 1-25 characters');
+          }
+          if (!button.phone_number) {
+            throw new ApiError(400, 'Phone button must have a phone number');
+          }
+          processedButton.text = button.text;
+          processedButton.phone_number = button.phone_number;
+          break;
+
+        case 'OTP':
+          if (!button.otp_type) {
+            throw new ApiError(400, 'OTP button must have otp_type');
+          }
+          processedButton.otp_type = button.otp_type.toUpperCase();
+          if (button.text) {
+            processedButton.text = button.text;
+          }
+          // Add additional OTP button properties
+          if (button.autofill_text) {
+            processedButton.autofill_text = button.autofill_text;
+          }
+          if (button.package_name) {
+            processedButton.package_name = button.package_name;
+          }
+          if (button.signature_hash) {
+            processedButton.signature_hash = button.signature_hash;
+          }
+          break;
+
+        case 'COPY_CODE':
+          if (button.example) {
+            processedButton.example = button.example;
+          }
+          break;
+
+        case 'FLOW':
+          if (!button.flow_id && !button.flow_name && !button.flow_json) {
+            throw new ApiError(400, 'Flow button must have flow_id, flow_name, or flow_json');
+          }
+          if (button.flow_id) processedButton.flow_id = button.flow_id;
+          if (button.flow_name) processedButton.flow_name = button.flow_name;
+          if (button.flow_json) processedButton.flow_json = button.flow_json;
+          if (button.flow_action) processedButton.flow_action = button.flow_action;
+          if (button.navigate_screen) processedButton.navigate_screen = button.navigate_screen;
+          break;
+
+        default:
+          throw new ApiError(400, `Unsupported button type: ${button.type}`);
       }
 
-      // Add body component
+      return processedButton;
+    });
+  }
+
+  /**
+   * Build legacy components for backward compatibility
+   */
+  async buildLegacyComponents({ body, footer_text, header, action_buttons }) {
+    const components = [];
+
+    // Add header if provided
+    if (header && header.type !== 'none') {
+      const headerComponent = { type: 'HEADER' };
+
+      if (header.type === 'text') {
+        headerComponent.format = 'TEXT';
+        headerComponent.text = header.text;
+
+        const headerVariables = this.extractVariables(header.text);
+        if (headerVariables.length > 0) {
+          headerComponent.example = {
+            header_text: headerVariables.map((_, index) => `Header Variable ${index + 1}`)
+          };
+        }
+      } else if (header.type === 'media') {
+        headerComponent.format = header.media.type.toUpperCase();
+
+        // Use URLs or handles for media headers with proper file extensions
+        if (header.media.url) {
+          headerComponent.example = {
+            header_handle: [header.media.url]
+          };
+        } else if (header.media.handle) {
+          headerComponent.example = {
+            header_handle: [header.media.handle]
+          };
+        } else {
+          // Use working sample URLs with proper file extensions for API v22
+          const sampleUrl = header.media.type === 'image'
+            ? "https://via.placeholder.com/800x600.jpg"
+            : header.media.type === 'video'
+            ? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            : "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+
+          headerComponent.example = {
+            header_handle: [sampleUrl]
+          };
+        }
+      }
+
+      components.push(headerComponent);
+    }
+
+    // Add body (required)
+    if (body) {
       const bodyComponent = {
         type: 'BODY',
         text: body
       };
 
-      // Extract variables from body text
-      const variables = this.extractVariables(body);
-      if (variables.length > 0) {
+      const bodyVariables = this.extractVariables(body);
+      if (bodyVariables.length > 0) {
         bodyComponent.example = {
-          body_text: [variables.map((_, index) => `Variable ${index + 1}`)]
+          body_text: [bodyVariables.map((_, index) => `Body Variable ${index + 1}`)]
         };
       }
 
-      metaTemplate.components.push(bodyComponent);
+      components.push(bodyComponent);
+    }
 
-      // Add footer component if provided
-      if (footer_text) {
-        metaTemplate.components.push({
-          type: 'FOOTER',
-          text: footer_text
-        });
-      }
+    // Add footer if provided
+    if (footer_text) {
+      components.push({
+        type: 'FOOTER',
+        text: footer_text
+      });
+    }
 
-      // Add action buttons if provided
-      if (action_buttons && action_buttons.length > 0) {
-        const buttonComponent = {
-          type: 'BUTTONS',
-          buttons: action_buttons.map(button => ({
-            type: button.type.toUpperCase(),
-            text: button.text,
-            ...(button.url && { url: button.url }),
-            ...(button.phone_number && { phone_number: button.phone_number })
-          }))
-        };
-        metaTemplate.components.push(buttonComponent);
+    // Add buttons if provided
+    if (action_buttons && action_buttons.length > 0) {
+      const buttonsComponent = {
+        type: 'BUTTONS',
+        buttons: action_buttons.map(button => ({
+          type: button.type.toUpperCase(),
+          text: button.text,
+          ...(button.url && { url: button.url }),
+          ...(button.phone_number && { phone_number: button.phone_number })
+        }))
+      };
+
+      components.push(buttonsComponent);
+    }
+
+    return components;
+  }
+
+  /**
+   * Count variables in all components
+   */
+  countVariablesInComponents(components) {
+    let count = 0;
+
+    for (const component of components) {
+      if (component.text) {
+        count += this.extractVariables(component.text).length;
       }
+      if (component.buttons) {
+        for (const button of component.buttons) {
+          if (button.url) {
+            count += this.extractVariables(button.url).length;
+          }
+        }
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * Create template in Meta API with comprehensive support
+   */
+  async createTemplate(userId, templateData) {
+    try {
+      // Check user permissions for creating WhatsApp Official templates
+      const user = await this.checkTemplatePermissions(userId, 'canCreateWhatsAppOfficialTemplates');
+
+      // Get WhatsApp configuration
+      const config = await this.getWhatsAppConfig(userId);
+
+      // Process template data with comprehensive support
+      const processedData = await this.processTemplateData(templateData, userId);
 
       // Create template in Meta API
       const url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates`;
@@ -267,34 +560,29 @@ class MetaTemplateService {
         'Content-Type': 'application/json'
       };
 
-      logger.info('Creating template directly in Meta API:', {
-        templateName: template_name,
+      logger.info('Creating comprehensive template in Meta API:', {
+        templateName: processedData.metaTemplate.name,
         businessAccountId: config.whatsappBusinessAccountId,
-        tokenEnd: config.accessToken.slice(-20)
+        componentCount: processedData.metaTemplate.components.length,
+        variableCount: processedData.variableCount
       });
 
-      const response = await axios.post(url, metaTemplate, { headers });
-      
-      // Validate Meta API response
-      if (!response.data || !response.data.id) {
-        throw new ApiError(500, 'Invalid response from Meta API: Missing template ID');
-      }
-      
+      const response = await axios.post(url, processedData.metaTemplate, { headers });
+
       logger.info('Template created successfully in Meta API:', {
         templateId: response.data.id,
+        templateName: response.data.name,
         status: response.data.status,
-        category: response.data.category,
-        userId,
-        userName: user.username
+        category: response.data.category
       });
 
       // Deduct credits after successful template creation
       let creditTransaction = null;
-      if (campaignCategory) {
+      if (processedData.campaignCategory) {
         creditTransaction = await this.deductTemplateCredits(
           userId,
-          campaign_category_id,
-          creditCost,
+          processedData.campaign_category_id,
+          processedData.creditCost,
           response.data.id
         );
       }
@@ -302,23 +590,23 @@ class MetaTemplateService {
       // Save template information to local database
       const localTemplate = new MetaTemplate({
         meta_template_id: response.data.id,
-        template_name: template_name,
-        language: language,
+        template_name: processedData.metaTemplate.name,
+        language: processedData.metaTemplate.language,
         category: response.data.category,
         status: response.data.status,
-        components: metaTemplate.components,
+        components: processedData.metaTemplate.components,
         created_by: userId,
         created_by_username: user.username,
         created_by_role: user.role,
         whatsapp_business_account_id: config.whatsappBusinessAccountId,
         whatsapp_config_id: config._id,
-        whatsapp_official_category_id: whatsapp_official_category_id,
-        campaign_category_id: campaign_category_id,
-        credit_cost: creditCost,
-        credits_deducted: campaignCategory ? creditCost : 0,
+        whatsapp_official_category_id: processedData.whatsapp_official_category_id,
+        campaign_category_id: processedData.campaign_category_id,
+        credit_cost: processedData.creditCost,
+        credits_deducted: processedData.campaignCategory ? processedData.creditCost : 0,
         credit_transaction_id: creditTransaction?._id,
-        parameter_format: response.data.parameter_format || 'POSITIONAL',
-        variable_count: this.extractVariables(body).length,
+        parameter_format: 'POSITIONAL',
+        variable_count: processedData.variableCount,
         meta_api_response: response.data,
         last_sync_at: new Date(),
         sync_status: 'synced'
@@ -329,23 +617,23 @@ class MetaTemplateService {
       logger.info('Template saved to local database:', {
         localId: localTemplate._id,
         metaId: response.data.id,
-        templateName: template_name
+        templateName: processedData.metaTemplate.name
       });
 
       return {
         id: response.data.id,
-        name: template_name,
+        name: processedData.metaTemplate.name,
         status: response.data.status,
         category: response.data.category,
-        language: language,
-        components: metaTemplate.components,
+        language: processedData.metaTemplate.language,
+        components: processedData.metaTemplate.components,
         created_at: new Date().toISOString(),
         credit_info: {
-          credits_deducted: campaignCategory ? creditCost : 0,
-          campaign_category: campaignCategory?.name,
+          credits_deducted: processedData.campaignCategory ? processedData.creditCost : 0,
+          campaign_category: processedData.campaignCategory?.name,
           transaction_id: creditTransaction?._id
         },
-        whatsapp_category: whatsappCategory?.name,
+        whatsapp_category: processedData.whatsappCategory?.name,
         created_by: {
           id: user._id,
           username: user.username,
@@ -356,76 +644,111 @@ class MetaTemplateService {
       };
 
     } catch (error) {
-      if (error.response?.data?.error) {
-        const metaError = error.response.data.error;
-        logger.error('Meta API template creation failed:', {
-          error: metaError,
-          templateName: templateData.template_name,
-          status: error.response.status
-        });
-        throw new ApiError(400, `Meta API Error: ${metaError.message || metaError.error_user_msg || 'Unknown error'}`);
-      }
-      
-      logger.error('Template creation failed:', error);
-      throw error;
+      logger.error('Failed to create template in Meta API:', error);
+      throw new ApiError(400, `Meta API Error: ${error.response?.data?.error?.message || error.message}`);
     }
   }
 
   /**
-   * Get all templates from Meta API with role-based filtering
+   * Check template credits before creation
+   */
+  async checkTemplateCredits(userId, categoryId, creditCost) {
+    const user = await User.findById(userId);
+    if (user.role === 'super_admin' || (user.rolePermissions && user.rolePermissions.hasUnlimitedCredits)) {
+      return true; // Super admin or unlimited credits
+    }
+
+    const credit = await Credit.findOne({ userId, categoryId });
+    if (!credit) {
+      throw new ApiError(400, 'No credits found for this category');
+    }
+
+    if (credit.isUnlimited) {
+      return true;
+    }
+
+    if (credit.credit < creditCost) {
+      throw new ApiError(400, `Insufficient credits. Required: ${creditCost}, Available: ${credit.credit}`);
+    }
+
+    return true;
+  }
+
+  /**
+   * Deduct template credits after successful creation
+   */
+  async deductTemplateCredits(userId, categoryId, creditCost, templateId) {
+    const user = await User.findById(userId);
+    if (user.role === 'super_admin' || (user.rolePermissions && user.rolePermissions.hasUnlimitedCredits)) {
+      return null; // No deduction for super admin or unlimited credits
+    }
+
+    const credit = await Credit.findOne({ userId, categoryId });
+    if (!credit || credit.isUnlimited) {
+      return null;
+    }
+
+    // Deduct credits
+    credit.credit -= creditCost;
+    await credit.save();
+
+    // Create transaction record
+    const transaction = new CreditTransaction({
+      userId,
+      categoryId,
+      creditUsed: creditCost,
+      transactionType: 'debit',
+      description: `Template creation: ${templateId}`,
+      balanceAfter: credit.credit
+    });
+
+    await transaction.save();
+
+    logger.info('Credits deducted for template creation:', {
+      userId,
+      templateId,
+      creditCost,
+      remainingCredits: credit.credit
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Get templates from Meta API
    */
   async getTemplates(userId, options = {}) {
     try {
-      const { limit = 25, after, include_credit_info = false } = options;
-
       // Check user permissions
-      const user = await this.checkTemplatePermissions(userId, 'manage_templates');
+      await this.checkTemplatePermissions(userId, 'canViewWhatsAppOfficialTemplates');
 
       // Get WhatsApp configuration
       const config = await this.getWhatsAppConfig(userId);
 
-      const url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates`;
+      const { limit = 25, after, include_credit_info = false } = options;
+
+      // Build URL with pagination
+      let url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates?limit=${limit}`;
+      if (after) {
+        url += `&after=${after}`;
+      }
+
       const headers = {
         'Authorization': `Bearer ${config.accessToken}`,
         'Content-Type': 'application/json'
       };
 
-      const params = { limit };
-      if (after) params.after = after;
+      logger.info('Fetching templates from Meta API:', {
+        businessAccountId: config.whatsappBusinessAccountId,
+        limit,
+        after
+      });
 
-      const response = await axios.get(url, { headers, params });
-
-      let templates = response.data.data || [];
-
-      // Add credit information if requested
-      if (include_credit_info) {
-        templates = await Promise.all(templates.map(async (template) => {
-          // Get credit transactions for this template
-          const transactions = await CreditTransaction.find({
-            'metadata.templateId': template.id,
-            'metadata.action': 'template_creation'
-          }).populate('categoryId', 'name creditCost');
-
-          return {
-            ...template,
-            credit_info: transactions.map(t => ({
-              credits_used: t.credit,
-              category: t.categoryId?.name,
-              created_at: t.createdAt
-            }))
-          };
-        }));
-      }
+      const response = await axios.get(url, { headers });
 
       return {
-        data: templates,
-        paging: response.data.paging || {},
-        total: templates.length,
-        user_info: {
-          id: user._id,
-          username: user.username,
-          role: user.role
-        }
+        data: response.data.data || [],
+        paging: response.data.paging || {}
       };
 
     } catch (error) {
@@ -435,10 +758,69 @@ class MetaTemplateService {
   }
 
   /**
+   * Get all templates with full details from Meta API
+   */
+  async getAllTemplatesWithDetails(userId, options = {}) {
+    try {
+      // Check user permissions
+      await this.checkTemplatePermissions(userId, 'canViewWhatsAppOfficialTemplates');
+
+      // Get WhatsApp configuration
+      const config = await this.getWhatsAppConfig(userId);
+
+      const allTemplates = [];
+      let after = null;
+      let hasNextPage = true;
+
+      while (hasNextPage) {
+        let url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates?limit=100`;
+        if (after) {
+          url += `&after=${after}`;
+        }
+
+        const headers = {
+          'Authorization': `Bearer ${config.accessToken}`,
+          'Content-Type': 'application/json'
+        };
+
+        const response = await axios.get(url, { headers });
+        const templates = response.data.data || [];
+        
+        allTemplates.push(...templates);
+
+        // Check if there's a next page
+        if (response.data.paging && response.data.paging.next) {
+          after = response.data.paging.cursors?.after;
+        } else {
+          hasNextPage = false;
+        }
+      }
+
+      logger.info('Retrieved all templates from Meta API:', {
+        totalCount: allTemplates.length,
+        businessAccountId: config.whatsappBusinessAccountId
+      });
+
+      return {
+        data: allTemplates,
+        total: allTemplates.length,
+        fetched_at: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('Failed to get all templates from Meta API:', error);
+      throw new ApiError(400, `Meta API Error: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
    * Get single template from Meta API
    */
   async getTemplate(userId, templateId) {
     try {
+      // Check user permissions
+      await this.checkTemplatePermissions(userId, 'canViewWhatsAppOfficialTemplates');
+
       // Get WhatsApp configuration
       const config = await this.getWhatsAppConfig(userId);
 
@@ -448,13 +830,15 @@ class MetaTemplateService {
         'Content-Type': 'application/json'
       };
 
+      logger.info('Fetching single template from Meta API:', {
+        templateId,
+        businessAccountId: config.whatsappBusinessAccountId
+      });
+
       const response = await axios.get(url, { headers });
       return response.data;
 
     } catch (error) {
-      if (error.response?.status === 404) {
-        throw new ApiError(404, 'Template not found');
-      }
       logger.error('Failed to get template from Meta API:', error);
       throw new ApiError(400, `Meta API Error: ${error.response?.data?.error?.message || error.message}`);
     }
@@ -465,265 +849,32 @@ class MetaTemplateService {
    */
   async deleteTemplate(userId, templateId) {
     try {
+      // Check user permissions
+      await this.checkTemplatePermissions(userId, 'canDeleteWhatsAppOfficialTemplates');
+
       // Get WhatsApp configuration
       const config = await this.getWhatsAppConfig(userId);
 
-      // First get the template to find its name
-      const template = await this.getTemplate(userId, templateId);
-
-      // Meta API delete endpoint format: DELETE /{business-account-id}/message_templates?name={template-name}
-      const url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates`;
+      const url = `${this.baseUrl}/${templateId}`;
       const headers = {
         'Authorization': `Bearer ${config.accessToken}`,
         'Content-Type': 'application/json'
       };
 
-      const params = {
-        name: template.name
-      };
-
-      const response = await axios.delete(url, { headers, params });
-
-      logger.info('Template deleted from Meta API:', {
+      logger.info('Deleting template from Meta API:', {
         templateId,
-        templateName: template.name,
-        success: response.data.success
+        businessAccountId: config.whatsappBusinessAccountId
       });
 
-      // Mark template as deleted in local database
-      try {
-        const localTemplate = await MetaTemplate.findOne({ meta_template_id: templateId });
-        if (localTemplate) {
-          await localTemplate.softDelete(null); // Will be updated with user ID in controller
-          logger.info('Template marked as deleted in local database:', {
-            localId: localTemplate._id,
-            metaId: templateId
-          });
-        }
-      } catch (localError) {
-        logger.warn('Failed to update local template deletion status:', localError);
-        // Don't fail the entire operation if local update fails
-      }
+      await axios.delete(url, { headers });
 
       return {
-        success: true,
-        message: 'Template deleted successfully',
-        templateName: template.name
+        message: 'Template deleted successfully from Meta API'
       };
 
     } catch (error) {
-      if (error.response?.status === 404) {
-        throw new ApiError(404, 'Template not found');
-      }
       logger.error('Failed to delete template from Meta API:', error);
       throw new ApiError(400, `Meta API Error: ${error.response?.data?.error?.message || error.message}`);
-    }
-  }
-
-  /**
-   * Get all templates with full details from Meta API
-   */
-  async getAllTemplatesWithDetails(userId, options = {}) {
-    try {
-      const { include_credit_info = false } = options;
-
-      // Check user permissions for viewing WhatsApp Official templates
-      const user = await this.checkTemplatePermissions(userId, 'canViewWhatsAppOfficialTemplates');
-
-      // Get WhatsApp configuration
-      const config = await this.getWhatsAppConfig(userId);
-
-      let allTemplates = [];
-      let after = null;
-      let hasMore = true;
-
-      // Fetch all templates with pagination
-      while (hasMore) {
-        const url = `${this.baseUrl}/${config.whatsappBusinessAccountId}/message_templates`;
-        const headers = {
-          'Authorization': `Bearer ${config.accessToken}`,
-          'Content-Type': 'application/json'
-        };
-
-        const params = {
-          limit: 100, // Maximum allowed by Meta API
-          ...(after && { after })
-        };
-
-        const response = await axios.get(url, { headers, params });
-        const templates = response.data.data || [];
-
-        allTemplates = allTemplates.concat(templates);
-
-        // Check if there are more pages
-        hasMore = response.data.paging && response.data.paging.next;
-        after = response.data.paging?.cursors?.after;
-      }
-
-      logger.info('Retrieved all templates with full details:', {
-        userId,
-        totalTemplates: allTemplates.length
-      });
-
-      return {
-        success: true,
-        data: allTemplates,
-        total: allTemplates.length,
-        fetched_at: new Date().toISOString()
-      };
-
-    } catch (error) {
-      logger.error('Failed to get all templates with details from Meta API:', error);
-      throw new ApiError(400, `Meta API Error: ${error.response?.data?.error?.message || error.message}`);
-    }
-  }
-
-  /**
-   * Delete multiple templates from Meta API
-   */
-  async deleteMultipleTemplates(userId, templateIds) {
-    try {
-      if (!Array.isArray(templateIds) || templateIds.length === 0) {
-        throw new ApiError(400, 'Template IDs must be a non-empty array');
-      }
-
-      const results = [];
-      const errors = [];
-
-      // Process deletions sequentially to avoid rate limiting
-      for (const templateId of templateIds) {
-        try {
-          const result = await this.deleteTemplate(userId, templateId);
-          results.push({
-            templateId,
-            success: true,
-            message: result.message,
-            templateName: result.templateName
-          });
-        } catch (error) {
-          errors.push({
-            templateId,
-            success: false,
-            error: error.message
-          });
-        }
-      }
-
-      logger.info('Bulk template deletion completed:', {
-        userId,
-        totalRequested: templateIds.length,
-        successful: results.length,
-        failed: errors.length
-      });
-
-      return {
-        success: true,
-        message: `Bulk deletion completed: ${results.length} successful, ${errors.length} failed`,
-        results,
-        errors,
-        summary: {
-          total: templateIds.length,
-          successful: results.length,
-          failed: errors.length
-        }
-      };
-
-    } catch (error) {
-      logger.error('Bulk template deletion failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get local templates from database
-   */
-  async getLocalTemplates(userId, options = {}) {
-    try {
-      // Check user permissions
-      await this.checkTemplatePermissions(userId, 'canViewWhatsAppOfficialTemplates');
-
-      const {
-        status,
-        category,
-        limit = 25,
-        page = 1,
-        search,
-        include_deleted = false
-      } = options;
-
-      const query = { created_by: userId };
-
-      if (!include_deleted) {
-        query.is_active = true;
-      }
-
-      if (status) {
-        query.status = status;
-      }
-
-      if (category) {
-        query.category = category;
-      }
-
-      if (search) {
-        query.$or = [
-          { template_name: { $regex: search, $options: 'i' } },
-          { created_by_username: { $regex: search, $options: 'i' } }
-        ];
-      }
-
-      const skip = (page - 1) * limit;
-
-      const [templates, total] = await Promise.all([
-        MetaTemplate.find(query)
-          .populate('whatsapp_official_category_id', 'name description')
-          .populate('campaign_category_id', 'name creditCost')
-          .populate('created_by', 'username firstName lastName role')
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit),
-        MetaTemplate.countDocuments(query)
-      ]);
-
-      return {
-        success: true,
-        data: templates,
-        pagination: {
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit)
-        }
-      };
-
-    } catch (error) {
-      logger.error('Failed to get local templates:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Sync template status from Meta API to local database
-   */
-  async syncTemplateStatus(userId, templateId) {
-    try {
-      // Get template from Meta API
-      const metaTemplate = await this.getTemplate(userId, templateId);
-
-      // Update local template
-      const localTemplate = await MetaTemplate.findOne({ meta_template_id: templateId });
-      if (localTemplate) {
-        await localTemplate.updateFromMeta(metaTemplate);
-        logger.info('Template status synced:', {
-          templateId,
-          newStatus: metaTemplate.status
-        });
-      }
-
-      return localTemplate;
-    } catch (error) {
-      logger.error('Failed to sync template status:', error);
-      throw error;
     }
   }
 
@@ -732,16 +883,8 @@ class MetaTemplateService {
    */
   extractVariables(text) {
     if (!text) return [];
-    const matches = text.match(/\{\{\d+\}\}/g) || [];
-    
-    // Get unique variable numbers and sort them
-    const variableNumbers = [...new Set(matches.map(match => {
-      const num = match.match(/\{\{(\d+)\}\}/)[1];
-      return parseInt(num);
-    }))].sort((a, b) => a - b);
-    
-    // Return array of variable placeholders
-    return variableNumbers.map(num => `{{${num}}}`);
+    const matches = text.match(/\{\{\d+\}\}/g);
+    return matches || [];
   }
 }
 

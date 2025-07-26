@@ -45,11 +45,24 @@ const metaTemplateSchema = new mongoose.Schema({
     buttons: [{
       type: {
         type: String,
-        enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER']
+        enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'OTP', 'COPY_CODE', 'FLOW', 'MPM']
       },
       text: String,
       url: String,
-      phone_number: String
+      phone_number: String,
+      // OTP button properties
+      otp_type: String,
+      autofill_text: String,
+      package_name: String,
+      signature_hash: String,
+      // Flow button properties
+      flow_id: String,
+      flow_name: String,
+      flow_json: mongoose.Schema.Types.Mixed,
+      flow_action: String,
+      navigate_screen: String,
+      // Additional properties
+      example: mongoose.Schema.Types.Mixed
     }]
   }],
   

@@ -33,20 +33,32 @@ const createTemplate = asyncHandler(async (req, res) => {
         template_name,
         language,
         body,
+        components,
         whatsapp_official_category_id,
         campaign_category_id
     } = req.body;
 
-    if (!template_name || !language || !body) {
+    // Check basic required fields
+    if (!template_name || !language) {
         return res.status(400).json({
             success: false,
             message: 'Missing required fields',
             errors: [
                 { field: 'template_name', message: 'Template name is required' },
-                { field: 'language', message: 'Language is required' },
-                { field: 'body', message: 'Body text is required' }
+                { field: 'language', message: 'Language is required' }
             ].filter(error => !req.body[error.field])
         });
+    }
+
+    // Check if we have either components (new format) or body (legacy format)
+    if (!components || components.length === 0) {
+        if (!body) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields',
+                errors: [{ field: 'body', message: 'Body text is required when components are not provided' }]
+            });
+        }
     }
 
     // Validate categories if provided
