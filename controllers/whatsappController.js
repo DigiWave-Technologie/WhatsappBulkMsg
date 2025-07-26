@@ -26,7 +26,7 @@ exports.getWhatsAppConfigs = async (req, res) => {
 // Configure WhatsApp
 exports.configureWhatsApp = async (req, res) => {
     try {
-        const { phoneNumber, whatsappBusinessAccountId, phoneNumberId, accessToken, name, description } = req.body;
+        const { phoneNumber, whatsappBusinessAccountId, phoneNumberId, accessToken, name, description, is_default } = req.body;
         const userId = req.user.userId;
 
         // Validate required fields
@@ -45,6 +45,14 @@ exports.configureWhatsApp = async (req, res) => {
             });
         }
 
+        // If setting as default, remove default from all other configs for this user
+        if (is_default === true) {
+            await WhatsAppConfig.updateMany(
+                { userId, is_default: true },
+                { is_default: false }
+            );
+        }
+
         // Check if configuration already exists for this phone number
         let config = await WhatsAppConfig.findOne({ userId, phoneNumber });
         
@@ -55,8 +63,14 @@ exports.configureWhatsApp = async (req, res) => {
             config.accessToken = accessToken;
             config.name = name || config.name;
             config.description = description || config.description;
+            config.is_default = is_default === true;
+            config.updated_by = userId;
             await config.save();
         } else {
+            // If no existing configs and this is the first one, make it default
+            const existingConfigCount = await WhatsAppConfig.countDocuments({ userId });
+            const shouldBeDefault = is_default === true || existingConfigCount === 0;
+
             // Create new configuration
             config = await WhatsAppConfig.create({
                 userId,
@@ -66,6 +80,7 @@ exports.configureWhatsApp = async (req, res) => {
                 accessToken,
                 name,
                 description,
+                is_default: shouldBeDefault,
                 created_by: userId
             });
         }
@@ -137,6 +152,14 @@ exports.updateWhatsAppConfig = async (req, res) => {
                 success: false,
                 message: 'Phone number is required'
             });
+        }
+
+        // If setting as default, remove default from all other configs for this user
+        if (is_default === true) {
+            await WhatsAppConfig.updateMany(
+                { userId, is_default: true },
+                { is_default: false }
+            );
         }
 
         // Find configuration
