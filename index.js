@@ -69,10 +69,10 @@ const metaTemplateRoutes = require('./routes/metaTemplateRoutes');
 app.use("/uploads", express.static(path.join(__dirname, "Uploads")));
 
 // Load SSL certificate and key
-// const sslOptions = {
-//   key: fs.readFileSync("/etc/letsencrypt/live/wahbulk.com/privkey.pem"),
-//   cert: fs.readFileSync("/etc/letsencrypt/live/wahbulk.com/fullchain.pem"),
-// };
+const sslOptions = {
+  key: fs.readFileSync("/etc/letsencrypt/live/wahbulk.com/privkey.pem"),
+  cert: fs.readFileSync("/etc/letsencrypt/live/wahbulk.com/fullchain.pem"),
+};
 
 // Connect to MongoDB and start server
 const startServer = async () => {
@@ -111,20 +111,20 @@ const startServer = async () => {
     app.use(errorHandler);
 
     // Start server
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
-  }
-//   https.createServer(sslOptions, app).listen(PORT, () => {
-//     console.log(`Server running on https://wahbulk.com:${PORT}`);
-//   });
-// } catch (error) {
-//   console.error("Failed to start server:", error);
-//   process.exit(1);
-// }
+  //   app.listen(PORT, () => {
+  //     console.log(`Server running on http://localhost:${PORT}`);
+  //   });
+  // } catch (error) {
+  //   console.error("Failed to start server:", error);
+  //   process.exit(1);
+  // }
+  https.createServer(sslOptions, app).listen(PORT, () => {
+    console.log(`Server running on https://wahbulk.com:${PORT}`);
+  });
+} catch (error) {
+  console.error("Failed to start server:", error);
+  process.exit(1);
+}
 };
 
 startServer();
