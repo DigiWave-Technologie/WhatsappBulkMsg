@@ -11,7 +11,7 @@ const { checkPermission } = require('../utils/permissions');
 
 class MetaTemplateService {
   constructor() {
-    this.baseUrl = 'https://graph.facebook.com/v18.0';
+    this.baseUrl = 'https://graph.facebook.com/v22.0';
   }
 
   /**
