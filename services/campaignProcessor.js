@@ -641,6 +641,8 @@ class CampaignProcessor {
                 // Update campaign stats
                 campaign.stats.sent = totalSent;
                 campaign.stats.failed = totalFailed;
+                campaign.markModified('stats');
+                campaign.markModified('recipients');
                 await campaign.save();
                 
                 console.log(`Batch ${b + 1} completed: ${totalSent} sent, ${totalFailed} failed`);
@@ -656,6 +658,8 @@ class CampaignProcessor {
             campaign.status = 'completed';
             campaign.stats.sent = totalSent;
             campaign.stats.failed = totalFailed;
+            campaign.markModified('stats');
+            campaign.markModified('recipients');
             await campaign.save();
             
             console.log(`🎉 WhatsApp Official campaign completed: ${totalSent} sent, ${totalFailed} failed`);

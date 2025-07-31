@@ -285,7 +285,15 @@ class WhatsAppService {
                 whatsappBusinessAccountId: 'dummy_business_id'
             };
         }
-        return await WhatsAppConfig.findOne({ userId, isActive: true });
+        // First try to get the default configuration
+        let config = await WhatsAppConfig.findOne({ userId, is_active: true, is_default: true });
+        
+        // If no default config found, get any active config
+        if (!config) {
+            config = await WhatsAppConfig.findOne({ userId, is_active: true });
+        }
+        
+        return config;
     }
 
     async sendMessage(userId, to, templateName, languageCode, components) {
