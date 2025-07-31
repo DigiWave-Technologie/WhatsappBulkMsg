@@ -476,22 +476,219 @@ class CampaignProcessor {
     }
 
     async processWhatsAppOfficialCampaign(campaign) {
+        try {
+            const { recipients, batchSize = 1000, intervalTime = 5, schedule, metaTemplate } = campaign;
+            const totalRecipients = recipients.length;
+            let batches = [];
+            
+            console.log('Processing WhatsApp Official campaign:', {
+                campaignId: campaign._id,
+                templateName: metaTemplate?.name,
+                recipientCount: totalRecipients
+            });
+            
+            // Get WhatsApp configuration
+            const WhatsAppConfig = require('../models/WhatsAppConfig');
+            const config = await WhatsAppConfig.findOne({ 
+                userId: campaign.userId, 
+                is_active: true, 
+                is_default: true 
+            });
+            
+            if (!config) {
+                throw new Error('WhatsApp configuration not found');
+            }
+
+            // Split recipients into batches
+            for (let i = 0; i < totalRecipients; i += batchSize) {
+                batches.push(recipients.slice(i, i + batchSize));
+            }
+
+            // Helper to send a batch using Meta API for template messages
+            const sendMetaTemplateBatch = async (batch) => {
+                const axios = require('axios');
+                const results = [];
+                
+                for (const recipient of batch) {
+                    try {
+                        // Build template message payload
+                        const templatePayload = {
+                            messaging_product: 'whatsapp',
+                            to: recipient.phoneNumber,
+                            type: 'template',
+                            template: {
+                                name: metaTemplate.name,
+                                language: {
+                                    code: metaTemplate.language.code
+                                }
+                            }
+                        };
+
+                        // Add template components if variables exist
+                        if (recipient.variables && Object.keys(recipient.variables).length > 0) {
+                            const components = [];
+                            
+                            // Build body parameters
+                            const bodyParams = [];
+                            const sortedKeys = Object.keys(recipient.variables).sort((a, b) => parseInt(a) - parseInt(b));
+                            
+                            for (const key of sortedKeys) {
+                                bodyParams.push({
+                                    type: 'text',
+                                    text: recipient.variables[key]
+                                });
+                            }
+                            
+                            if (bodyParams.length > 0) {
+                                components.push({
+                                    type: 'body',
+                                    parameters: bodyParams
+                                });
+                            }
+                            
+                            templatePayload.template.components = components;
+                        }
+
+                        console.log(`Sending template message to ${recipient.phoneNumber}:`, templatePayload);
+
+                        // Send message via Meta API
+                        const response = await axios.post(
+                            `https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`,
+                            templatePayload,
+                            {
+                                headers: {
+                                    'Authorization': `Bearer ${config.accessToken}`,
+                                    'Content-Type': 'application/json'
+                                }
+                            }
+                        );
+
+                        if (response.data && response.data.messages && response.data.messages[0]) {
+                            results.push({
+                                phoneNumber: recipient.phoneNumber,
+                                success: true,
+                                messageId: response.data.messages[0].id,
+                                status: response.data.messages[0].message_status
+                            });
+                            
+                            console.log(`✅ Message sent successfully to ${recipient.phoneNumber}:`, response.data.messages[0].id);
+                            
+                            // Update recipient status in campaign
+                            const recipientIndex = campaign.recipients.findIndex(r => r.phoneNumber === recipient.phoneNumber);
+                            if (recipientIndex !== -1) {
+                                campaign.recipients[recipientIndex].status = 'sent';
+                                campaign.recipients[recipientIndex].metadata = {
+                                    wamid: response.data.messages[0].id,
+                                    sentAt: new Date()
+                                };
+                                campaign.markModified(`recipients.${recipientIndex}`);
+                            }
+                        } else {
+                            throw new Error('Invalid response from Meta API');
+                        }
+                    } catch (error) {
+                        console.error(`❌ Failed to send message to ${recipient.phoneNumber}:`, error.response?.data || error.message);
+                        results.push({
+                            phoneNumber: recipient.phoneNumber,
+                            success: false,
+                            error: error.response?.data?.error?.message || error.message
+                        });
+                        
+                        // Update recipient status in campaign
+                        const recipientIndex = campaign.recipients.findIndex(r => r.phoneNumber === recipient.phoneNumber);
+                        if (recipientIndex !== -1) {
+                            campaign.recipients[recipientIndex].status = 'failed';
+                            campaign.recipients[recipientIndex].metadata = {
+                                errorMessage: error.response?.data?.error?.message || error.message
+                            };
+                            campaign.markModified(`recipients.${recipientIndex}`);
+                        }
+                    }
+                }
+                
+                return results;
+            };
+
+            // If scheduled, wait until schedule.startAt
+            const now = new Date();
+            let startTime = schedule?.startAt ? new Date(schedule.startAt) : now;
+            if (startTime > now) {
+                console.log(`Campaign scheduled for ${startTime}, waiting...`);
+                await new Promise(resolve => setTimeout(resolve, startTime - now));
+            }
+
+            // Update campaign status to running
+            campaign.status = 'running';
+            await campaign.save();
+
+            // Send batches with interval
+            let totalSent = 0;
+            let totalFailed = 0;
+            
+            for (let b = 0; b < batches.length; b++) {
+                console.log(`Processing batch ${b + 1}/${batches.length} with ${batches[b].length} recipients`);
+                const results = await sendMetaTemplateBatch(batches[b]);
+                
+                // Count results
+                results.forEach(result => {
+                    if (result.success) {
+                        totalSent++;
+                    } else {
+                        totalFailed++;
+                    }
+                });
+                
+                // Update campaign stats
+                campaign.stats.sent = totalSent;
+                campaign.stats.failed = totalFailed;
+                await campaign.save();
+                
+                console.log(`Batch ${b + 1} completed: ${totalSent} sent, ${totalFailed} failed`);
+                
+                // Wait between batches (except for the last batch)
+                if (b < batches.length - 1) {
+                    console.log(`Waiting ${intervalTime} minutes before next batch...`);
+                    await new Promise(resolve => setTimeout(resolve, intervalTime * 60 * 1000));
+                }
+            }
+
+            // Mark campaign as completed
+            campaign.status = 'completed';
+            campaign.stats.sent = totalSent;
+            campaign.stats.failed = totalFailed;
+            await campaign.save();
+            
+            console.log(`🎉 WhatsApp Official campaign completed: ${totalSent} sent, ${totalFailed} failed`);
+            
+        } catch (error) {
+            console.error('❌ Error processing WhatsApp Official campaign:', error);
+            campaign.status = 'failed';
+            await campaign.save();
+            throw error;
+        }
+    }
+
+    // Keep the existing WAAPI functionality for other campaign types
+    async processWAAPICampaign(campaign) {
         const { recipients, batchSize = 1000, intervalTime = 5, schedule, templateId, messageLimit } = campaign;
         const totalRecipients = recipients.length;
         let batches = [];
+        
         // Split recipients into batches
         for (let i = 0; i < totalRecipients; i += batchSize) {
             batches.push(recipients.slice(i, i + batchSize));
         }
-        // Helper to send a batch
+        
+        // Helper to send a batch using WAAPI
         const sendBatch = async (batch) => {
             const numbers = batch.map(r => r.phoneNumber);
-            // Use waMessageService to send messages (adjust as needed for template)
+            // Use waMessageService to send messages via WAAPI
             const results = await require('./waMessageService').sendWhatsAppMessages(
                 { campaignTitle: campaign.name, userMessage: campaign.message?.text },
                 numbers,
                 campaign.metaApiData?.phoneNumberId // or other instance ID as needed
             );
+            
             // Update recipient statuses
             for (let i = 0; i < batch.length; i++) {
                 const phone = batch[i].phoneNumber;
@@ -502,12 +699,14 @@ class CampaignProcessor {
                 }
             }
         };
+        
         // If scheduled, wait until schedule.startAt
         const now = new Date();
         let startTime = schedule?.startAt ? new Date(schedule.startAt) : now;
         if (startTime > now) {
             await new Promise(resolve => setTimeout(resolve, startTime - now));
         }
+        
         // Send batches with interval
         for (let b = 0; b < batches.length; b++) {
             await sendBatch(batches[b]);
@@ -515,6 +714,7 @@ class CampaignProcessor {
                 await new Promise(resolve => setTimeout(resolve, intervalTime * 60 * 1000));
             }
         }
+        
         campaign.status = 'completed';
         await campaign.save();
     }
