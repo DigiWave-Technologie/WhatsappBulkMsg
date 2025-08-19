@@ -1,5 +1,5 @@
 const WhatsAppOfficialCategory = require('../models/WhatsAppOfficialCategory');
-const WhatsAppOfficialTemplate = require('../models/WhatsAppOfficialTemplate');
+const MetaTemplate = require('../models/MetaTemplate');
 const { ApiError } = require('../utils/ApiError');
 const logger = require('../utils/logger');
 
@@ -154,7 +154,7 @@ exports.deleteCategory = async (req, res) => {
         }
 
         // Delete all templates associated with this category
-        await WhatsAppOfficialTemplate.deleteMany({ category: category._id });
+        await MetaTemplate.deleteMany({ whatsapp_official_category_id: category._id });
 
         // Now, delete the category
         await category.deleteOne();

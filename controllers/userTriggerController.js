@@ -1,5 +1,5 @@
 const UserTrigger = require('../models/UserTrigger');
-const WhatsAppOfficialTemplate = require('../models/WhatsAppOfficialTemplate');
+const MetaTemplate = require('../models/MetaTemplate');
 const { ApiError } = require('../utils/ApiError');
 const logger = require('../utils/logger');
 
@@ -9,7 +9,7 @@ exports.createTrigger = async (req, res) => {
         const { name, quick_reply, user_triggers, template, flow } = req.body;
 
         // Validate template exists
-        const templateExists = await WhatsAppOfficialTemplate.findById(template);
+        const templateExists = await MetaTemplate.findById(template);
         if (!templateExists) {
             throw new ApiError(404, 'Template not found');
         }
@@ -117,7 +117,7 @@ exports.updateTrigger = async (req, res) => {
 
         // Validate template exists if provided
         if (template) {
-            const templateExists = await WhatsAppOfficialTemplate.findById(template);
+            const templateExists = await MetaTemplate.findById(template);
             if (!templateExists) {
                 throw new ApiError(404, 'Template not found');
             }
